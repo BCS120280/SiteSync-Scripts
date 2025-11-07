@@ -1,0 +1,538 @@
+# Unified Connection Health Monitor — Single Gateway Timer Script
+# - Ensures/repairs [default]Health/* folders and rollups
+# - Probes ThingPark inbound, MQTT, SiteSync API, PI Adapter, PI Web API (token/basic),
+#   Actility endpoints, PI Adapter
+#   SiteSync UI (internal+external), , Azure Event Hub 
+# - Updates Fault_Summary and Overall_Healthy; bumps legacy counter
+
+import time, socket
+
+# -------- logger --------
+try:
+    LOG = system.util.getLogger("health.unified")
+except Exception:
+    LOG = None
+
+def _log(level, msg):
+    try:
+        if LOG:
+            getattr(LOG, level)(msg)
+    except Exception:
+        pass
+
+# -------- config --------
+PROVIDER              = "[default]"
+HEALTH_BASE           = PROVIDER + "Health"
+COUNTER_TAG           = "[default]PI Integration/SiteSync/ConnectivityCheck/count"
+PIPELINE_NAME         = "ConnAlarm"
+RUN_GATE_TAG          = HEALTH_BASE + "/ENABLE_UNIFIED_MONITOR"
+
+DEVICES_ROOT          = "[default]SiteSync/Devices"
+TIMESTAMP_TAG_SUFFIX  = "/LoRaMetrics/MesgTimeStamp"
+TP_STALE_MS           = 5 * 60 * 1000
+TP_SCAN_MIN_MS        = 30 * 1000
+
+MQTT_TX_STATUS_TAG    = "[MQTT Transmission]Transmission Info/Connected"  # or None
+BROKER_HOST, BROKER_PORT = "localhost", 1883
+
+SITESYNC_TENANT_ID    = 1
+
+PI_ADAPTER_BASE       = "https://pgwgen002923.mgroupnet.com:5590"
+
+# Adapter API
+PI_ADAPTER_API_URL   = "https://pgwgen002923.mgroupnet.com:5590/api/v1/configuration"
+
+# PI Web API — token OR basic user/pass. If token set, headers are used.
+PI_WEBAPI_BASE          = "https://pgwgen002923.mgroupnet.com/piwebapi"
+PI_WEBAPI_ENDPOINT      = "/system"  # "/dataservers" also OK
+PI_WEBAPI_USER          = None        # e.g. "DOMAIN\\svc_ignition"
+PI_WEBAPI_PASS          = None
+PI_WEBAPI_TOKEN         = "Q29nbml0ZVBJRXh0cmFjdF9zdmM6U355TSZQRGpWQDRRUTU="          # paste Base64 (Basic) or JWT (Bearer)
+PI_WEBAPI_AUTH_SCHEME   = "Basic"     # "Basic" or "Bearer"
+PI_WEBAPI_TIMEOUT_MS    = 5000
+PI_WEBAPI_INSECURE_OK   = False
+
+# Actility reachability (RELAXED)
+ACTILITY_TPX_IPS        = ["18.210.115.231", "52.1.89.48", "54.81.224.96"]
+ACTILITY_HTTPS_IPS      = ["10.102.12.10", "54.224.165.180", "10.102.22.10", "3.224.202.202"]
+# CloudFront pool for thingparkenterprise.us.actility.com (443)
+ACTILITY_CLOUDFRONT_IPS = [
+    "52.85.132.122","52.85.132.36","52.85.132.22","52.85.132.23",
+    "108.156.91.15","108.156.91.112","108.156.91.53","108.156.91.116",
+    "18.238.55.96","18.238.55.29","18.238.55.49","18.238.55.12",
+    "13.32.241.42","13.32.241.74","13.32.241.53","13.32.241.86",
+]
+ACTILITY_MQTT_TLS_PORT  = 8883
+ACTILITY_HTTPS_PORT     = 443
+ACTILITY_REQUIRE_BOTH   = False  # relaxed per your request
+
+# DMZ listener (PI Adapter -> SiteSync)
+DMZ_LISTEN_HOST, DMZ_LISTEN_TLS_PORT = "172.20.0.9", 8883
+MQTT_SYS_ROOT_TAG       = ""          # e.g. "[MQTT Engine]Chariot/$SYS/broker"
+PI_ADAPTER_CLIENT_ID    = ""          # optional $SYS per-client check
+
+# SiteSync UI (internal + external)
+SITESYNC_UI_HOST, SITESYNC_UI_PORT = "172.20.0.9", 8043
+SITESYNC_UI_EXTERNAL_IP = "199.192.37.144"
+
+# LDAP to Green DCs
+GREEN_DC_IPS            = []
+
+# Azure Event Hub (Dev/Prod)
+EVENTHUB_DEV_HOST       = "10.53.212.188"
+EVENTHUB_PROD_HOST      = "10.58.100.53"
+EVENTHUB_PORT           = 5671
+
+# Optional downstreams
+GEOEVENT_HEALTH_URL     = ""
+AZURE_HEALTH_URL        = ""
+
+# Health rollup members (AND)
+OVERALL_FOLDERS = [
+    "ThingPark_Inbound",
+    "MQTT_Broker",
+    "MQTT_Transmission",
+    "SiteSync_API",
+    "PI_Adapter",
+    "PI_Adapter_API",
+    "PI_WebAPI",
+    "GeoEvent",
+    "Azure_Function",
+    "Actility_API",
+    "PI_Adapter_Link",
+    "SiteSync_UI",
+    "SiteSync_UI_External",
+    "LDAP_Green",
+    "Azure_EventHub_Dev",
+    "Azure_EventHub_Prod",
+]
+
+_last_tp_scan = {"t": 0, "newest": None, "count": 0}
+
+# -------- optional project helper for SiteSync API --------
+_TP_MODULE_CANDIDATES = [
+    "connections.networkserver.code",
+    "network",
+    "sitesync",
+    "siteSyncNetwork",
+    "tp",
+    "joinserver",
+]
+
+def _import_sitesync_helper():
+    for mod in _TP_MODULE_CANDIDATES:
+        try:
+            return __import__("project.%s" % mod, fromlist=["*"])
+        except Exception:
+            pass
+    return None
+
+# -------- tag ensure / writes --------
+
+def _mem_tag(name, dtype, value, alarms=None):
+    t = {"name": name, "tagType": "AtomicTag", "valueSource": "memory", "dataType": dtype, "value": value, "enabled": True}
+    if alarms:
+        t["alarms"] = alarms
+    return t
+
+
+def _ensure_base():
+    base_cfg = [
+        _mem_tag("ENABLE_UNIFIED_MONITOR", "Boolean", True),
+        _mem_tag("Overall_Healthy", "Boolean", False),
+        _mem_tag("Fault_Summary", "String", ""),
+        _mem_tag("Last_Fault", "String", ""),
+        _mem_tag("Last_Fault_At", "DateTime", system.date.now()),
+        _mem_tag("_PipelinesAttached", "Boolean", False),
+    ]
+    system.tag.configure(HEALTH_BASE, base_cfg, "m")
+
+    for f in OVERALL_FOLDERS:
+        now = system.date.now()
+        alarms = [{
+            "name": "ConnDown", "enabled": True, "priority": "High",
+            "alarmMode": "Equal", "setpointA": False, "activePipeline": PIPELINE_NAME
+        }]
+        tags = [
+            _mem_tag("IsHealthy", "Boolean", False, alarms),
+            _mem_tag("Status", "String", "INIT"),
+            _mem_tag("Message", "String", ""),
+            _mem_tag("LatencyMs", "Int4", -1),
+            _mem_tag("LastCheck", "DateTime", now),
+            _mem_tag("LastOK", "DateTime", now),
+        ]
+        if f == "ThingPark_Inbound":
+            tags.append(_mem_tag("LastInboundMs", "Int8", 0))
+        if f == "MQTT_Broker":
+            tags.append(_mem_tag("Clients", "Int4", -1))
+        folder = [{"name": f, "tagType": "Folder", "tags": tags}]
+        try:
+            system.tag.configure(HEALTH_BASE, folder, "m")
+        except Exception:
+            folder[0]["tags"][0].pop("alarms", None)
+            system.tag.configure(HEALTH_BASE, folder, "m")
+
+
+def _attach_pipeline_once():
+    try:
+        q = system.tag.readBlocking([HEALTH_BASE + "/_PipelinesAttached"])[0]
+        if q and q.quality.isGood() and bool(q.value):
+            return
+    except Exception:
+        pass
+
+    try:
+        br = system.tag.browse(HEALTH_BASE, {"recursive": True})
+        for r in br.getResults():
+            fp = str(r.get("fullPath", ""))
+            if fp.endswith("/IsHealthy") and str(r.get("tagType", "")) == "AtomicTag":
+                try:
+                    cfg = system.tag.getConfiguration(fp, True)
+                    if not cfg:
+                        continue
+                    alarms = cfg[0].get("alarms") or []
+                    changed = False
+                    for a in alarms:
+                        if a.get("name") == "ConnDown":
+                            if "pipelines" in a:
+                                pl = set(a.get("pipelines") or [])
+                                if PIPELINE_NAME not in pl:
+                                    pl.add(PIPELINE_NAME)
+                                    a["pipelines"] = list(pl)
+                                    changed = True
+                            else:
+                                if a.get("activePipeline") != PIPELINE_NAME:
+                                    a["activePipeline"] = PIPELINE_NAME
+                                    changed = True
+                    if changed:
+                        system.tag.configure(fp, cfg, "m")
+                except Exception:
+                    pass
+        system.tag.writeBlocking([HEALTH_BASE + "/_PipelinesAttached"], [True])
+    except Exception:
+        pass
+
+
+def _set(folder, ok, msg, latency_ms):
+    base = HEALTH_BASE + "/" + folder
+    paths = [base + "/IsHealthy", base + "/Status", base + "/Message", base + "/LatencyMs", base + "/LastCheck"]
+    vals  = [bool(ok), ("OK" if ok else "BAD"), (str(msg)[:4000] if msg else ""), int(latency_ms) if latency_ms is not None else -1, system.date.now()]
+    try:
+        system.tag.writeBlocking(paths, vals)
+        if ok:
+            system.tag.writeBlocking([base + "/LastOK"], [system.date.now()])
+    except Exception:
+        pass
+
+
+def _maybe_bump_counter():
+    try:
+        qv = system.tag.readBlocking([COUNTER_TAG])[0]
+        cur = int(qv.value or 0)
+    except Exception:
+        base, name = COUNTER_TAG.rsplit("/", 1)
+        system.tag.configure(base, [{"name": name, "tagType": "AtomicTag", "valueSource": "memory", "dataType": "Int4", "value": 0}], "m")
+        cur = 0
+    try:
+        system.tag.writeBlocking([COUNTER_TAG], [cur + 1])
+    except Exception:
+        pass
+
+
+def _tcp(host, port, timeout=3.0):
+    t0 = time.time()
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        s.connect((host, int(port)))
+        s.close()
+        return True, int((time.time() - t0) * 1000)
+    except Exception:
+        return False, -1
+
+
+def _http(url, timeout_ms=5000, headers=None, username=None, password=None, insecure=False):
+    t0 = system.date.now()
+    try:
+        client = system.net.httpClient()
+        kwargs = {"connectTimeout": timeout_ms, "readTimeout": timeout_ms}
+        if headers:
+            kwargs["headers"] = headers
+        if username is not None:
+            kwargs["username"] = username
+        if password is not None:
+            kwargs["password"] = password
+        resp = client.get(url, **kwargs)
+        ms = system.date.millisBetween(t0, system.date.now())
+        code = int(resp.getStatusCode())
+        return (200 <= code < 300), ms, "HTTP %s" % code
+    except TypeError:
+        pass
+    except Exception as ex:
+        ms = system.date.millisBetween(t0, system.date.now())
+        return False, ms, ex.__class__.__name__ + ": " + str(ex)
+    try:
+        body = system.net.httpGet(url, timeout_ms, timeout_ms, None, username or None, password or None, bool(insecure))
+        ms = system.date.millisBetween(t0, system.date.now())
+        return True, ms, "len=%d" % len(body or "")
+    except Exception as ex2:
+        ms = system.date.millisBetween(t0, system.date.now())
+        return False, ms, ex2.__class__.__name__ + ": " + str(ex2)
+
+
+def _bool_tag(path):
+    try:
+        q = system.tag.readBlocking([path])[0]
+        return q.quality.isGood() and bool(q.value)
+    except Exception:
+        return None
+
+
+def _newest_device_timestamp():
+    now_ms = system.date.toMillis(system.date.now())
+    if now_ms - _last_tp_scan["t"] < TP_SCAN_MIN_MS:
+        return _last_tp_scan["newest"], _last_tp_scan["count"]
+    try:
+        res = system.tag.browse(DEVICES_ROOT, {"recursive": True})
+        paths = []
+        for r in res.getResults():
+            fp = str(r.get("fullPath", ""))
+            if fp.endswith(TIMESTAMP_TAG_SUFFIX):
+                paths.append(fp)
+        if not paths:
+            _last_tp_scan.update({"t": now_ms, "newest": None, "count": 0})
+            return None, 0
+        qv = system.tag.readBlocking(paths)
+        newest = None
+        for q in qv:
+            if not q or not q.quality.isGood() or q.value is None:
+                continue
+            try:
+                ms = system.date.toMillis(q.value)
+                if newest is None or ms > newest:
+                    newest = ms
+            except Exception:
+                pass
+        _last_tp_scan.update({"t": now_ms, "newest": newest, "count": len(paths)})
+        return newest, len(paths)
+    except Exception:
+        _last_tp_scan.update({"t": now_ms, "newest": None, "count": 0})
+        return None, 0
+
+
+def _sitesync_api():
+    t0 = system.date.now()
+    mod = _import_sitesync_helper()
+    if mod and hasattr(mod, "testAPI"):
+        try:
+            res = mod.testAPI(SITESYNC_TENANT_ID)
+            ms = system.date.millisBetween(t0, system.date.now())
+            txt = "" if res is None else str(res)
+            ok = bool(res) and ("error" not in txt.lower())
+            return ok, ms, ("" if ok else txt[:4000])
+        except Exception as ex:
+            ms = system.date.millisBetween(t0, system.date.now())
+            return False, ms, str(ex)
+    try:
+        raw = system.sitesync.testJoinAPIImpl(SITESYNC_TENANT_ID)
+        ms = system.date.millisBetween(t0, system.date.now())
+        txt = "" if raw is None else str(raw)
+        ok = bool(raw) and ("error" not in txt.lower())
+        return ok, ms, ("" if ok else txt[:4000])
+    except Exception as ex:
+        ms = system.date.millisBetween(t0, system.date.now())
+        return False, ms, str(ex)
+
+
+def _actility_tcp():
+    mqtt_good, https_good = 0, 0
+    best = None
+    for ip in ACTILITY_TPX_IPS:
+        ok1, ms1 = _tcp(ip, ACTILITY_MQTT_TLS_PORT)
+        if ok1:
+            mqtt_good += 1
+            best = ms1 if best is None or (0 <= ms1 < best) else best
+    for ip in (ACTILITY_HTTPS_IPS + ACTILITY_CLOUDFRONT_IPS):
+        ok2, ms2 = _tcp(ip, ACTILITY_HTTPS_PORT)
+        if ok2:
+            https_good += 1
+            best = ms2 if best is None or (0 <= ms2 < best) else best
+    mqtt_ok = mqtt_good > 0
+    https_ok = https_good > 0
+    overall = (mqtt_ok and https_ok) if ACTILITY_REQUIRE_BOTH else (mqtt_ok or https_ok)
+    msg = "TPX 8883 up %d/%d; HTTPS 443 up %d/%d" % (mqtt_good, len(ACTILITY_TPX_IPS), https_good, len(ACTILITY_HTTPS_IPS)+len(ACTILITY_CLOUDFRONT_IPS))
+    return overall, (best if best is not None else -1), msg
+
+
+def _pi_adapter_link():
+    ok, ms = _tcp(DMZ_LISTEN_HOST, DMZ_LISTEN_TLS_PORT)
+    if not ok:
+        return False, ms, "DMZ 8883 not listening @ %s:%s" % (DMZ_LISTEN_HOST, DMZ_LISTEN_TLS_PORT)
+    if PI_ADAPTER_CLIENT_ID and MQTT_SYS_ROOT_TAG:
+        path = MQTT_SYS_ROOT_TAG + "/clients/" + PI_ADAPTER_CLIENT_ID + "/connected"
+        try:
+            q = system.tag.readBlocking([path])[0]
+            if q and q.quality.isGood():
+                try:
+                    val = int(q.value)
+                except Exception:
+                    val = 1 if bool(q.value) else 0
+                if val >= 1:
+                    return True, (ms if ms >= 0 else 0), "DMZ 8883 listening; client %s connected" % PI_ADAPTER_CLIENT_ID
+                return False, (ms if ms >= 0 else 0), "DMZ 8883 listening; client %s NOT connected" % PI_ADAPTER_CLIENT_ID
+            return True, (ms if ms >= 0 else 0), "$SYS client tag bad/missing"
+        except Exception as ex:
+            return True, (ms if ms >= 0 else 0), "$SYS read err: %s" % ex
+    return True, (ms if ms >= 0 else 0), "DMZ 8883 listening @ %s:%s" % (DMZ_LISTEN_HOST, DMZ_LISTEN_TLS_PORT)
+
+
+def _pi_adapter_api_health():
+    try:
+        ok, ms, msg = _http(PI_ADAPTER_API_URL, timeout_ms=4000)
+        return ok, ms, msg
+    except Exception as ex:
+        return False, -1, str(ex)
+
+
+def _pi_webapi_health():
+    url = PI_WEBAPI_BASE.rstrip("/") + PI_WEBAPI_ENDPOINT
+    headers = {"Accept": "application/json"}
+    if PI_WEBAPI_TOKEN:
+        if PI_WEBAPI_AUTH_SCHEME.lower() == "bearer":
+            headers["Authorization"] = "Bearer " + PI_WEBAPI_TOKEN
+        else:
+            headers["Authorization"] = "Basic " + PI_WEBAPI_TOKEN
+        return _http(url, timeout_ms=PI_WEBAPI_TIMEOUT_MS, headers=headers, insecure=bool(PI_WEBAPI_INSECURE_OK))
+    return _http(url, timeout_ms=PI_WEBAPI_TIMEOUT_MS, username=PI_WEBAPI_USER or None, password=PI_WEBAPI_PASS or None, insecure=bool(PI_WEBAPI_INSECURE_OK))
+
+
+def _update_fault_and_overall():
+    paths = []
+    for f in OVERALL_FOLDERS:
+        paths.append(HEALTH_BASE + "/" + f + "/IsHealthy")
+        paths.append(HEALTH_BASE + "/" + f + "/Message")
+    try:
+        qv = system.tag.readBlocking(paths)
+    except Exception:
+        return
+    bad = []
+    for i, f in enumerate(OVERALL_FOLDERS):
+        qh, qm = qv[2 * i], qv[2 * i + 1]
+        ok = qh is not None and qh.quality.isGood() and bool(qh.value)
+        if not ok:
+            msg = ""
+            try:
+                if qm and qm.quality is not None and qm.quality.isGood() and qm.value:
+                    msg = str(qm.value)
+            except Exception:
+                pass
+            bad.append(f + ": " + (msg or "No details"))
+    try:
+        if bad:
+            system.tag.writeBlocking(
+                [HEALTH_BASE + "/Fault_Summary", HEALTH_BASE + "/Last_Fault", HEALTH_BASE + "/Last_Fault_At"],
+                ["; ".join(bad)[:4000], bad[0][:4000], system.date.now()]
+            )
+        else:
+            system.tag.writeBlocking([HEALTH_BASE + "/Fault_Summary"], ["All healthy"])
+        system.tag.writeBlocking([HEALTH_BASE + "/Overall_Healthy"], [not bool(bad)])
+    except Exception:
+        pass
+
+# -------- MAIN --------
+try:
+    _ensure_base()
+    _attach_pipeline_once()
+
+    try:
+        qg = system.tag.readBlocking([RUN_GATE_TAG])[0]
+        if not (qg and qg.quality.isGood() and bool(qg.value)):
+            _maybe_bump_counter()
+            raise SystemExit
+    except Exception:
+        pass
+
+    _maybe_bump_counter()
+
+    newest_ms, count = _newest_device_timestamp()
+    if newest_ms is None:
+        _set("ThingPark_Inbound", False, "No device timestamps under %s" % DEVICES_ROOT, -1)
+        system.tag.writeBlocking([HEALTH_BASE + "/ThingPark_Inbound/LastInboundMs"], [0])
+    else:
+        now_ms = system.date.toMillis(system.date.now())
+        age = now_ms - newest_ms
+        ok_tp = age < TP_STALE_MS
+        _set("ThingPark_Inbound", ok_tp, ("" if ok_tp else "No uplink in %ds (checked %d devices)" % (int(age / 1000), count)), int(age / 1000))
+        system.tag.writeBlocking([HEALTH_BASE + "/ThingPark_Inbound/LastInboundMs"], [int(newest_ms)])
+
+    mt = _bool_tag(MQTT_TX_STATUS_TAG) if MQTT_TX_STATUS_TAG else None
+    if mt is not None:
+        _set("MQTT_Transmission", mt, ("" if mt else "Transmission reported down"), -1)
+
+    up, rtt = _tcp(BROKER_HOST, BROKER_PORT)
+    _set("MQTT_Broker", up, ("" if up else "TCP connect failed"), rtt)
+    if mt is None:
+        _set("MQTT_Transmission", up, ("" if up else "Using broker reachability"), rtt)
+
+    ok, ms, msg = _sitesync_api()
+    _set("SiteSync_API", ok, ("" if ok else msg), ms)
+
+    if PI_ADAPTER_BASE:
+        ok, ms, msg = _http(PI_ADAPTER_BASE.rstrip("/") + "/system/status", timeout_ms=4000)
+        _set("PI_Adapter", ok, ("" if ok else msg), ms)
+
+    if PI_ADAPTER_API_URL:
+        ok, ms, msg = _pi_adapter_api_health()
+        _set("PI_Adapter_API", ok, ("" if ok else msg), ms)
+
+    if PI_WEBAPI_BASE:
+        ok, ms, msg = _pi_webapi_health()
+        _set("PI_WebAPI", ok, ("" if ok else msg), ms)
+
+    if GEOEVENT_HEALTH_URL:
+        ok, ms, msg = _http(GEOEVENT_HEALTH_URL, timeout_ms=4000)
+        _set("GeoEvent", ok, ("" if ok else msg), ms)
+
+    if AZURE_HEALTH_URL:
+        ok, ms, msg = _http(AZURE_HEALTH_URL, timeout_ms=4000)
+        _set("Azure_Function", ok, ("" if ok else msg), ms)
+
+    ok, ms, msg = _actility_tcp()
+    _set("Actility_API", ok, ("" if ok else msg), ms)
+
+    ok, ms, msg = _pi_adapter_link()
+    _set("PI_Adapter_Link", ok, ("" if ok else msg), ms)
+
+    ok, ms = _tcp(SITESYNC_UI_HOST, SITESYNC_UI_PORT)
+    _set("SiteSync_UI", ok, ("UI listening @ %s:%s" % (SITESYNC_UI_HOST, SITESYNC_UI_PORT) if ok else "TCP connect failed"), ms)
+
+    try:
+        ok, ms = _tcp(SITESYNC_UI_EXTERNAL_IP, SITESYNC_UI_PORT)
+        _set("SiteSync_UI_External", ok, ("UI listening @ %s:%s" % (SITESYNC_UI_EXTERNAL_IP, SITESYNC_UI_PORT) if ok else "TCP connect failed"), ms)
+    except Exception:
+        _set("SiteSync_UI_External", False, "TCP connect failed", -1)
+
+    if GREEN_DC_IPS:
+        good = 0
+        best = None
+        for ip in GREEN_DC_IPS:
+            ok1, ms1 = _tcp(ip, 636)
+            if ok1:
+                good += 1
+                best = ms1 if best is None or (0 <= ms1 < best) else best
+        _set("LDAP_Green", (good > 0), ("636 up %d/%d DCs" % (good, len(GREEN_DC_IPS))), (best if best is not None else -1))
+    else:
+        _set("LDAP_Green", True, "Skipped: set GREEN_DC_IPS", -1)
+
+    ok, ms = _tcp(EVENTHUB_DEV_HOST, EVENTHUB_PORT)
+    _set("Azure_EventHub_Dev", ok, ("5671 reachable @ %s" % EVENTHUB_DEV_HOST if ok else "TCP connect failed"), ms)
+
+    ok, ms = _tcp(EVENTHUB_PROD_HOST, EVENTHUB_PORT)
+    _set("Azure_EventHub_Prod", ok, ("5671 reachable @ %s" % EVENTHUB_PROD_HOST if ok else "TCP connect failed"), ms)
+
+    _update_fault_and_overall()
+
+except SystemExit:
+    pass
+except Exception as e:
+    _log("error", "Unified monitor failure: %r" % (e,))
