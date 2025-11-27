@@ -250,117 +250,122 @@ def check_thingpark_inbound():
 # MAIN EXECUTION STARTS HERE
 # =============================================================================
 
-log = _system.util.getLogger("SiteSync.HealthTimer")
-g = _system.util.getGlobals()
+try:
+    log = _system.util.getLogger("SiteSync.HealthTimer")
+    g = _system.util.getGlobals()
 
-# Check for re-entrance
-if g.get("_SS_HEALTH_RUNNING", False):
-    log.warn("Previous cycle still running; skipping.")
-else:
-    # Mark as running
-    g["_SS_HEALTH_RUNNING"] = True
-    
-    try:
-        # Ensure base structure exists
-        ensure_folder(BASE)
-        ensure_folder(CONFIG_BASE)
-        ensure_mem_tag(BASE, "ScriptHeartbeat", "DateTime")
-        ensure_mem_tag(BASE, "AlarmDisplayText", "String", "Healthy")
-        
-        now = _system.date.now()
-        _system.tag.writeBlocking([BASE + "/ScriptHeartbeat"], [now])
-        
-        # Process each service
-        for service in SERVICES:
-            service_path = BASE + "/" + service
-            
-            # Ensure all required tags exist
-            ensure_mem_tag(service_path, "LastCheck", "DateTime")
-            ensure_mem_tag(service_path, "LastOK", "DateTime")
-            ensure_mem_tag(service_path, "LatencyMs", "Int4", 0)
-            ensure_mem_tag(service_path, "Message", "String", "Initializing...")
-            ensure_mem_tag(service_path, "Status", "String", "INIT")
-            ensure_mem_tag(service_path, "IsHealthy", "Boolean", True)
-            
-            # Perform health check
-            try:
-                if service == "MQTT_Broker":
-                    is_healthy, latency, message, status = check_mqtt_broker()
-                elif service == "MQTT_Transmission":
-                    is_healthy, latency, message, status = check_mqtt_transmission()
-                elif service == "SiteSync_API":
-                    is_healthy, latency, message, status = check_http_service(service, "https://localhost:8088/")
-                elif service == "PI_WebAPI":
-                    is_healthy, latency, message, status = check_http_service(service, "https://pi-server/piwebapi/")
-                elif service == "PI_Adapter":
-                    is_healthy, latency, message, status = check_http_service(service, "https://localhost:5460/")
-                elif service == "ThingPark_Inbound":
-                    is_healthy, latency, message, status = check_thingpark_inbound()
-                elif service == "Azure_Function":
-                    is_healthy, latency, message, status = check_http_service(service, "")
-                elif service == "GeoEvent":
-                    is_healthy, latency, message, status = check_http_service(service, "")
-                elif service == "Actility_API":
-                    is_healthy, latency, message, status = check_http_service(service, "")
-                else:
-                    is_healthy, latency, message, status = False, 0, "Unknown service", "UNKNOWN"
-                
-                # Build write paths and values
-                paths = [
-                    service_path + "/LastCheck",
-                    service_path + "/LatencyMs",
-                    service_path + "/Message",
-                    service_path + "/Status",
-                    service_path + "/IsHealthy"
-                ]
-                
-                values = [now, int(latency), message, status, is_healthy]
-                
-                # Add LastOK if healthy
-                if is_healthy:
-                    paths.append(service_path + "/LastOK")
-                    values.append(now)
-                
-                # Write all tags
-                _system.tag.writeBlocking(paths, values)
-                log.debug("%s: %s - %s" % (service, "HEALTHY" if is_healthy else "UNHEALTHY", message))
-                
-            except Exception as e:
-                error_msg = "Check failed: %s" % safe_str(e, 150)
-                log.error("%s: %s" % (service, error_msg))
-                _system.tag.writeBlocking(
-                    [service_path + "/LastCheck", service_path + "/Message", 
-                     service_path + "/Status", service_path + "/IsHealthy"],
-                    [now, error_msg, "EXCEPTION", False]
-                )
-        
-        # Update overall alarm display text
+    # Check for re-entrance
+    if g.get("_SS_HEALTH_RUNNING", False):
+        log.warn("Previous cycle still running; skipping.")
+    else:
+        # Mark as running
+        g["_SS_HEALTH_RUNNING"] = True
+
         try:
-            rows = _system.alarm.queryStatus(sourcePath=BASE + "/Overall_Healthy*")
-            if rows and len(rows) > 0 and hasattr(rows[0], "displayPath"):
-                txt = rows[0].displayPath
-            elif rows == []:
-                txt = "Healthy"
-            else:
-                txt = "Overall Health"
-            _system.tag.writeBlocking([BASE + "/AlarmDisplayText"], [txt])
-        except Exception as e:
-            log.warn("AlarmDisplayText update: " + safe_str(e))
-        
-        # Update debug counter if exists
-        debug_counter_path = BASE + "/Debug/TimerCounter"
-        if _system.tag.exists(debug_counter_path):
+            # Ensure base structure exists
+            ensure_folder(BASE)
+            ensure_folder(CONFIG_BASE)
+            ensure_mem_tag(BASE, "ScriptHeartbeat", "DateTime")
+            ensure_mem_tag(BASE, "AlarmDisplayText", "String", "Healthy")
+
+            now = _system.date.now()
+            _system.tag.writeBlocking([BASE + "/ScriptHeartbeat"], [now])
+
+            # Process each service
+            for service in SERVICES:
+                service_path = BASE + "/" + service
+
+                # Ensure all required tags exist
+                ensure_mem_tag(service_path, "LastCheck", "DateTime")
+                ensure_mem_tag(service_path, "LastOK", "DateTime")
+                ensure_mem_tag(service_path, "LatencyMs", "Int4", 0)
+                ensure_mem_tag(service_path, "Message", "String", "Initializing...")
+                ensure_mem_tag(service_path, "Status", "String", "INIT")
+                ensure_mem_tag(service_path, "IsHealthy", "Boolean", True)
+
+                # Perform health check
+                try:
+                    if service == "MQTT_Broker":
+                        is_healthy, latency, message, status = check_mqtt_broker()
+                    elif service == "MQTT_Transmission":
+                        is_healthy, latency, message, status = check_mqtt_transmission()
+                    elif service == "SiteSync_API":
+                        is_healthy, latency, message, status = check_http_service(service, "https://localhost:8088/")
+                    elif service == "PI_WebAPI":
+                        is_healthy, latency, message, status = check_http_service(service, "https://pi-server/piwebapi/")
+                    elif service == "PI_Adapter":
+                        is_healthy, latency, message, status = check_http_service(service, "https://localhost:5460/")
+                    elif service == "ThingPark_Inbound":
+                        is_healthy, latency, message, status = check_thingpark_inbound()
+                    elif service == "Azure_Function":
+                        is_healthy, latency, message, status = check_http_service(service, "")
+                    elif service == "GeoEvent":
+                        is_healthy, latency, message, status = check_http_service(service, "")
+                    elif service == "Actility_API":
+                        is_healthy, latency, message, status = check_http_service(service, "")
+                    else:
+                        is_healthy, latency, message, status = False, 0, "Unknown service", "UNKNOWN"
+
+                    # Build write paths and values
+                    paths = [
+                        service_path + "/LastCheck",
+                        service_path + "/LatencyMs",
+                        service_path + "/Message",
+                        service_path + "/Status",
+                        service_path + "/IsHealthy"
+                    ]
+
+                    values = [now, int(latency), message, status, is_healthy]
+
+                    # Add LastOK if healthy
+                    if is_healthy:
+                        paths.append(service_path + "/LastOK")
+                        values.append(now)
+
+                    # Write all tags
+                    _system.tag.writeBlocking(paths, values)
+                    log.debug("%s: %s - %s" % (service, "HEALTHY" if is_healthy else "UNHEALTHY", message))
+
+                except Exception as e:
+                    error_msg = "Check failed: %s" % safe_str(e, 150)
+                    log.error("%s: %s" % (service, error_msg))
+                    _system.tag.writeBlocking(
+                        [service_path + "/LastCheck", service_path + "/Message",
+                         service_path + "/Status", service_path + "/IsHealthy"],
+                        [now, error_msg, "EXCEPTION", False]
+                    )
+
+            # Update overall alarm display text
             try:
-                current = _system.tag.readBlocking([debug_counter_path])[0].value
-                _system.tag.writeBlocking([debug_counter_path], [current + 1])
-            except:
-                pass
-        
-        log.info("Health check cycle completed successfully")
-        
-    except Exception as e:
-        log.error("Top-level failure: " + safe_str(e))
-        
-    finally:
-        # Always clear the running flag
-        g["_SS_HEALTH_RUNNING"] = False
+                rows = _system.alarm.queryStatus(sourcePath=BASE + "/Overall_Healthy*")
+                if rows and len(rows) > 0 and hasattr(rows[0], "displayPath"):
+                    txt = rows[0].displayPath
+                elif rows == []:
+                    txt = "Healthy"
+                else:
+                    txt = "Overall Health"
+                _system.tag.writeBlocking([BASE + "/AlarmDisplayText"], [txt])
+            except Exception as e:
+                log.warn("AlarmDisplayText update: " + safe_str(e))
+
+            # Update debug counter if exists
+            debug_counter_path = BASE + "/Debug/TimerCounter"
+            if _system.tag.exists(debug_counter_path):
+                try:
+                    current = _system.tag.readBlocking([debug_counter_path])[0].value
+                    _system.tag.writeBlocking([debug_counter_path], [current + 1])
+                except:
+                    pass
+
+            log.info("Health check cycle completed successfully")
+
+        except Exception as e:
+            log.error("Top-level failure: " + safe_str(e))
+
+        finally:
+            # Always clear the running flag
+            g["_SS_HEALTH_RUNNING"] = False
+
+except Exception as e:
+    # Handle case where _system is not available at module initialization
+    pass
