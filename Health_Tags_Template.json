@@ -1,0 +1,965 @@
+{
+  "name": "Health",
+  "tagType": "Folder",
+  "tags": [
+    {
+      "name": "ENABLE_UNIFIED_MONITOR",
+      "tagType": "AtomicTag",
+      "valueSource": "memory",
+      "dataType": "Boolean",
+      "value": true,
+      "documentation": "Enable/disable the unified health monitor script"
+    },
+    {
+      "name": "Overall_Healthy",
+      "tagType": "AtomicTag",
+      "valueSource": "memory",
+      "dataType": "Boolean",
+      "value": false,
+      "documentation": "Overall health status - AND of all service health checks"
+    },
+    {
+      "name": "Fault_Summary",
+      "tagType": "AtomicTag",
+      "valueSource": "memory",
+      "dataType": "String",
+      "value": "Initializing...",
+      "documentation": "Summary of all current faults"
+    },
+    {
+      "name": "Last_Fault",
+      "tagType": "AtomicTag",
+      "valueSource": "memory",
+      "dataType": "String",
+      "value": "",
+      "documentation": "Most recent fault message"
+    },
+    {
+      "name": "Last_Fault_At",
+      "tagType": "AtomicTag",
+      "valueSource": "memory",
+      "dataType": "DateTime",
+      "documentation": "Timestamp of most recent fault"
+    },
+    {
+      "name": "_PipelinesAttached",
+      "tagType": "AtomicTag",
+      "valueSource": "memory",
+      "dataType": "Boolean",
+      "value": false,
+      "documentation": "Internal flag - alarm pipelines have been configured"
+    },
+    {
+      "name": "ThingPark_Inbound",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastInboundMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int8",
+          "value": 0,
+          "documentation": "Timestamp (ms) of most recent device message"
+        }
+      ]
+    },
+    {
+      "name": "MQTT_Broker",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "Clients",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1,
+          "documentation": "Number of connected MQTT clients"
+        }
+      ]
+    },
+    {
+      "name": "MQTT_Transmission",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "SiteSync_API",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "PI_Adapter",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "PI_Adapter_API",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "PI_WebAPI",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "GeoEvent",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "Azure_Function",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "Actility_API",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "PI_Adapter_Link",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "SiteSync_UI",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "SiteSync_UI_External",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "LDAP_Green",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "Azure_EventHub_Dev",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    },
+    {
+      "name": "Azure_EventHub_Prod",
+      "tagType": "Folder",
+      "tags": [
+        {
+          "name": "IsHealthy",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Boolean",
+          "value": false,
+          "alarms": [
+            {
+              "name": "ConnDown",
+              "enabled": true,
+              "priority": "High",
+              "mode": "Equal",
+              "setpointA": false,
+              "activePipeline": "ConnAlarm"
+            }
+          ]
+        },
+        {
+          "name": "Status",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": "INIT"
+        },
+        {
+          "name": "Message",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "String",
+          "value": ""
+        },
+        {
+          "name": "LatencyMs",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "Int4",
+          "value": -1
+        },
+        {
+          "name": "LastCheck",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        },
+        {
+          "name": "LastOK",
+          "tagType": "AtomicTag",
+          "valueSource": "memory",
+          "dataType": "DateTime"
+        }
+      ]
+    }
+  ]
+}
