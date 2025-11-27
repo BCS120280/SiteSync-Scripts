@@ -208,8 +208,9 @@ def check_thingpark_inbound():
             return cached_healthy, cached_latency, cached_msg, cached_status
         
         start = _system.date.now()
-        results = _system.tag.browse(devices_root, {"recursive": True, "tagType": "AtomicTag"})
-        
+        browse_results = _system.tag.browse(devices_root, {"recursive": True, "tagType": "AtomicTag"})
+        results = browse_results.getResults()
+
         timestamp_tags = []
         for result in results:
             if result['name'].endswith(timestamp_suffix):
