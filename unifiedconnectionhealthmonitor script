@@ -7,9 +7,15 @@
 
 import time, socket
 
+# =============================================================================
+# CAPTURE SYSTEM REFERENCE - Must be done BEFORE function definitions
+# This allows functions to access the Ignition 'system' object
+# =============================================================================
+_system = system
+
 # -------- logger --------
 try:
-    LOG = system.util.getLogger("health.unified")
+    LOG = __system.util.getLogger("health.unified")
 except Exception:
     LOG = None
 
@@ -142,13 +148,13 @@ def _ensure_base():
         _mem_tag("Overall_Healthy", "Boolean", False),
         _mem_tag("Fault_Summary", "String", ""),
         _mem_tag("Last_Fault", "String", ""),
-        _mem_tag("Last_Fault_At", "DateTime", system.date.now()),
+        _mem_tag("Last_Fault_At", "DateTime", _system.date.now()),
         _mem_tag("_PipelinesAttached", "Boolean", False),
     ]
-    system.tag.configure(HEALTH_BASE, base_cfg, "m")
+    _system.tag.configure(HEALTH_BASE, base_cfg, "m")
 
     for f in OVERALL_FOLDERS:
-        now = system.date.now()
+        now = _system.date.now()
         alarms = [{
             "name": "ConnDown", "enabled": True, "priority": "High",
             "alarmMode": "Equal", "setpointA": False, "activePipeline": PIPELINE_NAME
@@ -167,27 +173,27 @@ def _ensure_base():
             tags.append(_mem_tag("Clients", "Int4", -1))
         folder = [{"name": f, "tagType": "Folder", "tags": tags}]
         try:
-            system.tag.configure(HEALTH_BASE, folder, "m")
+            _system.tag.configure(HEALTH_BASE, folder, "m")
         except Exception:
             folder[0]["tags"][0].pop("alarms", None)
-            system.tag.configure(HEALTH_BASE, folder, "m")
+            _system.tag.configure(HEALTH_BASE, folder, "m")
 
 
 def _attach_pipeline_once():
     try:
-        q = system.tag.readBlocking([HEALTH_BASE + "/_PipelinesAttached"])[0]
+        q = _system.tag.readBlocking([HEALTH_BASE + "/_PipelinesAttached"])[0]
         if q and q.quality.isGood() and bool(q.value):
             return
     except Exception:
         pass
 
     try:
-        br = system.tag.browse(HEALTH_BASE, {"recursive": True})
+        br = _system.tag.browse(HEALTH_BASE, {"recursive": True})
         for r in br.getResults():
             fp = str(r.get("fullPath", ""))
             if fp.endswith("/IsHealthy") and str(r.get("tagType", "")) == "AtomicTag":
                 try:
-                    cfg = system.tag.getConfiguration(fp, True)
+                    cfg = _system.tag.getConfiguration(fp, True)
                     if not cfg:
                         continue
                     alarms = cfg[0].get("alarms") or []
@@ -205,10 +211,10 @@ def _attach_pipeline_once():
                                     a["activePipeline"] = PIPELINE_NAME
                                     changed = True
                     if changed:
-                        system.tag.configure(fp, cfg, "m")
+                        _system.tag.configure(fp, cfg, "m")
                 except Exception:
                     pass
-        system.tag.writeBlocking([HEALTH_BASE + "/_PipelinesAttached"], [True])
+        _system.tag.writeBlocking([HEALTH_BASE + "/_PipelinesAttached"], [True])
     except Exception:
         pass
 
@@ -216,25 +222,25 @@ def _attach_pipeline_once():
 def _set(folder, ok, msg, latency_ms):
     base = HEALTH_BASE + "/" + folder
     paths = [base + "/IsHealthy", base + "/Status", base + "/Message", base + "/LatencyMs", base + "/LastCheck"]
-    vals  = [bool(ok), ("OK" if ok else "BAD"), (str(msg)[:4000] if msg else ""), int(latency_ms) if latency_ms is not None else -1, system.date.now()]
+    vals  = [bool(ok), ("OK" if ok else "BAD"), (str(msg)[:4000] if msg else ""), int(latency_ms) if latency_ms is not None else -1, _system.date.now()]
     try:
-        system.tag.writeBlocking(paths, vals)
+        _system.tag.writeBlocking(paths, vals)
         if ok:
-            system.tag.writeBlocking([base + "/LastOK"], [system.date.now()])
+            _system.tag.writeBlocking([base + "/LastOK"], [_system.date.now()])
     except Exception:
         pass
 
 
 def _maybe_bump_counter():
     try:
-        qv = system.tag.readBlocking([COUNTER_TAG])[0]
+        qv = _system.tag.readBlocking([COUNTER_TAG])[0]
         cur = int(qv.value or 0)
     except Exception:
         base, name = COUNTER_TAG.rsplit("/", 1)
-        system.tag.configure(base, [{"name": name, "tagType": "AtomicTag", "valueSource": "memory", "dataType": "Int4", "value": 0}], "m")
+        _system.tag.configure(base, [{"name": name, "tagType": "AtomicTag", "valueSource": "memory", "dataType": "Int4", "value": 0}], "m")
         cur = 0
     try:
-        system.tag.writeBlocking([COUNTER_TAG], [cur + 1])
+        _system.tag.writeBlocking([COUNTER_TAG], [cur + 1])
     except Exception:
         pass
 
@@ -252,9 +258,9 @@ def _tcp(host, port, timeout=3.0):
 
 
 def _http(url, timeout_ms=5000, headers=None, username=None, password=None, insecure=False):
-    t0 = system.date.now()
+    t0 = _system.date.now()
     try:
-        client = system.net.httpClient()
+        client = _system.net.httpClient()
         kwargs = {"connectTimeout": timeout_ms, "readTimeout": timeout_ms}
         if headers:
             kwargs["headers"] = headers
@@ -263,37 +269,37 @@ def _http(url, timeout_ms=5000, headers=None, username=None, password=None, inse
         if password is not None:
             kwargs["password"] = password
         resp = client.get(url, **kwargs)
-        ms = system.date.millisBetween(t0, system.date.now())
+        ms = _system.date.millisBetween(t0, _system.date.now())
         code = int(resp.getStatusCode())
         return (200 <= code < 300), ms, "HTTP %s" % code
     except TypeError:
         pass
     except Exception as ex:
-        ms = system.date.millisBetween(t0, system.date.now())
+        ms = _system.date.millisBetween(t0, _system.date.now())
         return False, ms, ex.__class__.__name__ + ": " + str(ex)
     try:
-        body = system.net.httpGet(url, timeout_ms, timeout_ms, None, username or None, password or None, bool(insecure))
-        ms = system.date.millisBetween(t0, system.date.now())
+        body = _system.net.httpGet(url, timeout_ms, timeout_ms, None, username or None, password or None, bool(insecure))
+        ms = _system.date.millisBetween(t0, _system.date.now())
         return True, ms, "len=%d" % len(body or "")
     except Exception as ex2:
-        ms = system.date.millisBetween(t0, system.date.now())
+        ms = _system.date.millisBetween(t0, _system.date.now())
         return False, ms, ex2.__class__.__name__ + ": " + str(ex2)
 
 
 def _bool_tag(path):
     try:
-        q = system.tag.readBlocking([path])[0]
+        q = _system.tag.readBlocking([path])[0]
         return q.quality.isGood() and bool(q.value)
     except Exception:
         return None
 
 
 def _newest_device_timestamp():
-    now_ms = system.date.toMillis(system.date.now())
+    now_ms = _system.date.toMillis(_system.date.now())
     if now_ms - _last_tp_scan["t"] < TP_SCAN_MIN_MS:
         return _last_tp_scan["newest"], _last_tp_scan["count"]
     try:
-        res = system.tag.browse(DEVICES_ROOT, {"recursive": True})
+        res = _system.tag.browse(DEVICES_ROOT, {"recursive": True})
         paths = []
         for r in res.getResults():
             fp = str(r.get("fullPath", ""))
@@ -302,13 +308,13 @@ def _newest_device_timestamp():
         if not paths:
             _last_tp_scan.update({"t": now_ms, "newest": None, "count": 0})
             return None, 0
-        qv = system.tag.readBlocking(paths)
+        qv = _system.tag.readBlocking(paths)
         newest = None
         for q in qv:
             if not q or not q.quality.isGood() or q.value is None:
                 continue
             try:
-                ms = system.date.toMillis(q.value)
+                ms = _system.date.toMillis(q.value)
                 if newest is None or ms > newest:
                     newest = ms
             except Exception:
@@ -321,26 +327,26 @@ def _newest_device_timestamp():
 
 
 def _sitesync_api():
-    t0 = system.date.now()
+    t0 = _system.date.now()
     mod = _import_sitesync_helper()
     if mod and hasattr(mod, "testAPI"):
         try:
             res = mod.testAPI(SITESYNC_TENANT_ID)
-            ms = system.date.millisBetween(t0, system.date.now())
+            ms = _system.date.millisBetween(t0, _system.date.now())
             txt = "" if res is None else str(res)
             ok = bool(res) and ("error" not in txt.lower())
             return ok, ms, ("" if ok else txt[:4000])
         except Exception as ex:
-            ms = system.date.millisBetween(t0, system.date.now())
+            ms = _system.date.millisBetween(t0, _system.date.now())
             return False, ms, str(ex)
     try:
-        raw = system.sitesync.testJoinAPIImpl(SITESYNC_TENANT_ID)
-        ms = system.date.millisBetween(t0, system.date.now())
+        raw = _system.sitesync.testJoinAPIImpl(SITESYNC_TENANT_ID)
+        ms = _system.date.millisBetween(t0, _system.date.now())
         txt = "" if raw is None else str(raw)
         ok = bool(raw) and ("error" not in txt.lower())
         return ok, ms, ("" if ok else txt[:4000])
     except Exception as ex:
-        ms = system.date.millisBetween(t0, system.date.now())
+        ms = _system.date.millisBetween(t0, _system.date.now())
         return False, ms, str(ex)
 
 
@@ -371,7 +377,7 @@ def _pi_adapter_link():
     if PI_ADAPTER_CLIENT_ID and MQTT_SYS_ROOT_TAG:
         path = MQTT_SYS_ROOT_TAG + "/clients/" + PI_ADAPTER_CLIENT_ID + "/connected"
         try:
-            q = system.tag.readBlocking([path])[0]
+            q = _system.tag.readBlocking([path])[0]
             if q and q.quality.isGood():
                 try:
                     val = int(q.value)
@@ -412,7 +418,7 @@ def _update_fault_and_overall():
         paths.append(HEALTH_BASE + "/" + f + "/IsHealthy")
         paths.append(HEALTH_BASE + "/" + f + "/Message")
     try:
-        qv = system.tag.readBlocking(paths)
+        qv = _system.tag.readBlocking(paths)
     except Exception:
         return
     bad = []
@@ -429,13 +435,13 @@ def _update_fault_and_overall():
             bad.append(f + ": " + (msg or "No details"))
     try:
         if bad:
-            system.tag.writeBlocking(
+            _system.tag.writeBlocking(
                 [HEALTH_BASE + "/Fault_Summary", HEALTH_BASE + "/Last_Fault", HEALTH_BASE + "/Last_Fault_At"],
-                ["; ".join(bad)[:4000], bad[0][:4000], system.date.now()]
+                ["; ".join(bad)[:4000], bad[0][:4000], _system.date.now()]
             )
         else:
-            system.tag.writeBlocking([HEALTH_BASE + "/Fault_Summary"], ["All healthy"])
-        system.tag.writeBlocking([HEALTH_BASE + "/Overall_Healthy"], [not bool(bad)])
+            _system.tag.writeBlocking([HEALTH_BASE + "/Fault_Summary"], ["All healthy"])
+        _system.tag.writeBlocking([HEALTH_BASE + "/Overall_Healthy"], [not bool(bad)])
     except Exception:
         pass
 
@@ -445,7 +451,7 @@ try:
     _attach_pipeline_once()
 
     try:
-        qg = system.tag.readBlocking([RUN_GATE_TAG])[0]
+        qg = _system.tag.readBlocking([RUN_GATE_TAG])[0]
         if not (qg and qg.quality.isGood() and bool(qg.value)):
             _maybe_bump_counter()
             raise SystemExit
@@ -457,13 +463,13 @@ try:
     newest_ms, count = _newest_device_timestamp()
     if newest_ms is None:
         _set("ThingPark_Inbound", False, "No device timestamps under %s" % DEVICES_ROOT, -1)
-        system.tag.writeBlocking([HEALTH_BASE + "/ThingPark_Inbound/LastInboundMs"], [0])
+        _system.tag.writeBlocking([HEALTH_BASE + "/ThingPark_Inbound/LastInboundMs"], [0])
     else:
-        now_ms = system.date.toMillis(system.date.now())
+        now_ms = _system.date.toMillis(_system.date.now())
         age = now_ms - newest_ms
         ok_tp = age < TP_STALE_MS
         _set("ThingPark_Inbound", ok_tp, ("" if ok_tp else "No uplink in %ds (checked %d devices)" % (int(age / 1000), count)), int(age / 1000))
-        system.tag.writeBlocking([HEALTH_BASE + "/ThingPark_Inbound/LastInboundMs"], [int(newest_ms)])
+        _system.tag.writeBlocking([HEALTH_BASE + "/ThingPark_Inbound/LastInboundMs"], [int(newest_ms)])
 
     mt = _bool_tag(MQTT_TX_STATUS_TAG) if MQTT_TX_STATUS_TAG else None
     if mt is not None:
