@@ -15,7 +15,7 @@ _system = system
 
 # -------- logger --------
 try:
-    LOG = __system.util.getLogger("health.unified")
+    LOG = _system.util.getLogger("health.unified")
 except Exception:
     LOG = None
 
