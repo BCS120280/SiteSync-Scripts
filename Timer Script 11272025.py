@@ -7,10 +7,10 @@ from java.net import Socket
 from java.io import IOException
 
 # =============================================================================
-# CAPTURE SYSTEM REFERENCE - Must be done BEFORE function definitions
+# CAPTURE SYSTEM REFERENCE - Will be initialized in main block
 # This allows functions to access the Ignition 'system' object
 # =============================================================================
-_system = system
+_system = None
 
 # =============================================================================
 # CONFIGURATION
@@ -251,6 +251,10 @@ def check_thingpark_inbound():
 # =============================================================================
 
 try:
+    # Initialize system reference - must be first in try block
+    global _system
+    _system = system
+
     log = _system.util.getLogger("SiteSync.HealthTimer")
     g = _system.util.getGlobals()
 
