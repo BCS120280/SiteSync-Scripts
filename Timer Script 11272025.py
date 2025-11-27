@@ -7,6 +7,12 @@ from java.net import Socket
 from java.io import IOException
 
 # =============================================================================
+# CAPTURE SYSTEM REFERENCE - Must be done BEFORE function definitions
+# This allows functions to access the Ignition 'system' object
+# =============================================================================
+_system = system
+
+# =============================================================================
 # CONFIGURATION
 # =============================================================================
 PROVIDER = "default"
@@ -33,7 +39,7 @@ def safe_str(x, n=400):
 
 def ensure_folder(path):
     """Recursively create folder structure if it doesn't exist"""
-    if system.tag.exists(path): 
+    if _system.tag.exists(path): 
         return
     i = path.find("]")
     prov = path[1:i]
@@ -41,8 +47,8 @@ def ensure_folder(path):
     parent = "[%s]" % prov
     for seg in (rem.split("/") if rem else []):
         cur = parent + (seg if parent.endswith("]") else "/" + seg)
-        if not system.tag.exists(cur):
-            system.tag.configure(parent, [{"name":seg,"tagType":"Folder"}], "m")
+        if not _system.tag.exists(cur):
+            _system.tag.configure(parent, [{"name":seg,"tagType":"Folder"}], "m")
         parent = cur
 
 
@@ -50,20 +56,20 @@ def ensure_mem_tag(parent, name, dtype, default=None):
     """Create memory tag if it doesn't exist"""
     ensure_folder(parent)
     full = parent + "/" + name
-    if system.tag.exists(full):
+    if _system.tag.exists(full):
         return
     td = {"name":name,"tagType":"AtomicTag","valueSource":"memory","dataType":dtype}
     if default is not None:
         td["value"] = default
-    system.tag.configure(parent, [td], "m")
+    _system.tag.configure(parent, [td], "m")
 
 
 def read_config(service, param, default=None):
     """Read configuration parameter for a service"""
     try:
         path = "%s/%s/%s" % (CONFIG_BASE, service, param)
-        if system.tag.exists(path):
-            qv = system.tag.readBlocking([path])[0]
+        if _system.tag.exists(path):
+            qv = _system.tag.readBlocking([path])[0]
             return qv.value if qv.quality.isGood() else default
         return default
     except:
@@ -80,15 +86,15 @@ def check_mqtt_broker():
     port = read_config("MQTT_Broker", "Port", 1883)
     timeout_ms = read_config("MQTT_Broker", "TimeoutMs", 3000)
     
-    start = system.date.now()
+    start = _system.date.now()
     try:
         sock = Socket()
         sock.connect(java.net.InetSocketAddress(host, int(port)), int(timeout_ms))
         sock.close()
-        latency = system.date.secondsBetween(start, system.date.now()) * 1000
+        latency = _system.date.secondsBetween(start, _system.date.now()) * 1000
         return True, int(latency), "Connected to %s:%s" % (host, port), "OK"
     except IOException as e:
-        latency = system.date.secondsBetween(start, system.date.now()) * 1000
+        latency = _system.date.secondsBetween(start, _system.date.now()) * 1000
         return False, int(latency), "Failed: %s" % safe_str(e, 100), "ERROR"
     except Exception as e:
         return False, 0, "Exception: %s" % safe_str(e, 100), "ERROR"
@@ -101,13 +107,13 @@ def check_mqtt_transmission():
     stale_threshold_ms = read_config("MQTT_Transmission", "StaleThresholdMs", 300000)
     
     try:
-        qv = system.tag.readBlocking([connected_path])[0]
+        qv = _system.tag.readBlocking([connected_path])[0]
         if not qv.quality.isGood():
             return False, 0, "Tag quality bad: %s" % qv.quality, "ERROR"
         
         is_connected = bool(qv.value)
         timestamp = qv.timestamp
-        age_ms = system.date.secondsBetween(timestamp, system.date.now()) * 1000
+        age_ms = _system.date.secondsBetween(timestamp, _system.date.now()) * 1000
         
         if not is_connected:
             return False, int(age_ms), "MQTT disconnected", "DISCONNECTED"
@@ -129,7 +135,7 @@ def check_http_service(service_name, default_url):
     if not url or url == "":
         return False, 0, "No URL configured", "NOT_CONFIGURED"
     
-    start = system.date.now()
+    start = _system.date.now()
     try:
         username = None
         password = None
@@ -143,7 +149,7 @@ def check_http_service(service_name, default_url):
             if token:
                 header_values["Authorization"] = "Bearer %s" % token
         
-        response = system.net.httpClient(
+        response = _system.net.httpClient(
             url=url,
             timeout=int(timeout_ms),
             username=username,
@@ -152,7 +158,7 @@ def check_http_service(service_name, default_url):
             bypassCertValidation=bypass_ssl
         )
         
-        latency = system.date.secondsBetween(start, system.date.now()) * 1000
+        latency = _system.date.secondsBetween(start, _system.date.now()) * 1000
         
         if response.statusCode >= 200 and response.statusCode < 300:
             return True, int(latency), "HTTP %d" % response.statusCode, "OK"
@@ -160,18 +166,18 @@ def check_http_service(service_name, default_url):
             return False, int(latency), "HTTP %d" % response.statusCode, "HTTP_ERROR"
             
     except Exception as e:
-        latency = system.date.secondsBetween(start, system.date.now()) * 1000
+        latency = _system.date.secondsBetween(start, _system.date.now()) * 1000
         if url.startswith("https://"):
             try:
                 http_url = url.replace("https://", "http://")
-                response = system.net.httpClient(
+                response = _system.net.httpClient(
                     url=http_url,
                     timeout=int(timeout_ms),
                     username=username,
                     password=password,
                     headerValues=header_values
                 )
-                latency = system.date.secondsBetween(start, system.date.now()) * 1000
+                latency = _system.date.secondsBetween(start, _system.date.now()) * 1000
                 if response.statusCode >= 200 and response.statusCode < 300:
                     return True, int(latency), "HTTP %d (fallback)" % response.statusCode, "OK"
             except:
@@ -191,18 +197,18 @@ def check_thingpark_inbound():
     ensure_mem_tag(BASE + "/ThingPark_Inbound", "LastScanMs", "Int8", 0)
     
     try:
-        last_scan_ms = system.tag.readBlocking([last_scan_path])[0].value
-        now_ms = system.date.toMillis(system.date.now())
+        last_scan_ms = _system.tag.readBlocking([last_scan_path])[0].value
+        now_ms = _system.date.toMillis(_system.date.now())
         
         if (now_ms - last_scan_ms) < scan_min_interval_ms:
-            cached_healthy = system.tag.readBlocking([BASE + "/ThingPark_Inbound/IsHealthy"])[0].value
-            cached_latency = system.tag.readBlocking([BASE + "/ThingPark_Inbound/LatencyMs"])[0].value
-            cached_msg = system.tag.readBlocking([BASE + "/ThingPark_Inbound/Message"])[0].value
-            cached_status = system.tag.readBlocking([BASE + "/ThingPark_Inbound/Status"])[0].value
+            cached_healthy = _system.tag.readBlocking([BASE + "/ThingPark_Inbound/IsHealthy"])[0].value
+            cached_latency = _system.tag.readBlocking([BASE + "/ThingPark_Inbound/LatencyMs"])[0].value
+            cached_msg = _system.tag.readBlocking([BASE + "/ThingPark_Inbound/Message"])[0].value
+            cached_status = _system.tag.readBlocking([BASE + "/ThingPark_Inbound/Status"])[0].value
             return cached_healthy, cached_latency, cached_msg, cached_status
         
-        start = system.date.now()
-        results = system.tag.browse(devices_root, {"recursive": True, "tagType": "AtomicTag"})
+        start = _system.date.now()
+        results = _system.tag.browse(devices_root, {"recursive": True, "tagType": "AtomicTag"})
         
         timestamp_tags = []
         for result in results:
@@ -212,21 +218,21 @@ def check_thingpark_inbound():
         if len(timestamp_tags) == 0:
             return False, 0, "No timestamp tags found", "NO_DATA"
         
-        qvs = system.tag.readBlocking(timestamp_tags)
-        now = system.date.now()
+        qvs = _system.tag.readBlocking(timestamp_tags)
+        now = _system.date.now()
         min_age_ms = None
         stale_count = 0
         
         for qv in qvs:
             if qv.quality.isGood() and qv.value is not None:
-                age_ms = system.date.secondsBetween(qv.value, now) * 1000
+                age_ms = _system.date.secondsBetween(qv.value, now) * 1000
                 if min_age_ms is None or age_ms < min_age_ms:
                     min_age_ms = age_ms
                 if age_ms > stale_threshold_ms:
                     stale_count += 1
         
-        latency = system.date.secondsBetween(start, system.date.now()) * 1000
-        system.tag.writeBlocking([last_scan_path], [now_ms])
+        latency = _system.date.secondsBetween(start, _system.date.now()) * 1000
+        _system.tag.writeBlocking([last_scan_path], [now_ms])
         
         if min_age_ms is None:
             return False, int(latency), "No valid timestamps", "NO_DATA"
@@ -243,8 +249,8 @@ def check_thingpark_inbound():
 # MAIN EXECUTION STARTS HERE
 # =============================================================================
 
-log = system.util.getLogger("SiteSync.HealthTimer")
-g = system.util.getGlobals()
+log = _system.util.getLogger("SiteSync.HealthTimer")
+g = _system.util.getGlobals()
 
 # Check for re-entrance
 if g.get("_SS_HEALTH_RUNNING", False):
@@ -260,8 +266,8 @@ else:
         ensure_mem_tag(BASE, "ScriptHeartbeat", "DateTime")
         ensure_mem_tag(BASE, "AlarmDisplayText", "String", "Healthy")
         
-        now = system.date.now()
-        system.tag.writeBlocking([BASE + "/ScriptHeartbeat"], [now])
+        now = _system.date.now()
+        _system.tag.writeBlocking([BASE + "/ScriptHeartbeat"], [now])
         
         # Process each service
         for service in SERVICES:
@@ -315,13 +321,13 @@ else:
                     values.append(now)
                 
                 # Write all tags
-                system.tag.writeBlocking(paths, values)
+                _system.tag.writeBlocking(paths, values)
                 log.debug("%s: %s - %s" % (service, "HEALTHY" if is_healthy else "UNHEALTHY", message))
                 
             except Exception as e:
                 error_msg = "Check failed: %s" % safe_str(e, 150)
                 log.error("%s: %s" % (service, error_msg))
-                system.tag.writeBlocking(
+                _system.tag.writeBlocking(
                     [service_path + "/LastCheck", service_path + "/Message", 
                      service_path + "/Status", service_path + "/IsHealthy"],
                     [now, error_msg, "EXCEPTION", False]
@@ -329,23 +335,23 @@ else:
         
         # Update overall alarm display text
         try:
-            rows = system.alarm.queryStatus(sourcePath=BASE + "/Overall_Healthy*")
+            rows = _system.alarm.queryStatus(sourcePath=BASE + "/Overall_Healthy*")
             if rows and len(rows) > 0 and hasattr(rows[0], "displayPath"):
                 txt = rows[0].displayPath
             elif rows == []:
                 txt = "Healthy"
             else:
                 txt = "Overall Health"
-            system.tag.writeBlocking([BASE + "/AlarmDisplayText"], [txt])
+            _system.tag.writeBlocking([BASE + "/AlarmDisplayText"], [txt])
         except Exception as e:
             log.warn("AlarmDisplayText update: " + safe_str(e))
         
         # Update debug counter if exists
         debug_counter_path = BASE + "/Debug/TimerCounter"
-        if system.tag.exists(debug_counter_path):
+        if _system.tag.exists(debug_counter_path):
             try:
-                current = system.tag.readBlocking([debug_counter_path])[0].value
-                system.tag.writeBlocking([debug_counter_path], [current + 1])
+                current = _system.tag.readBlocking([debug_counter_path])[0].value
+                _system.tag.writeBlocking([debug_counter_path], [current + 1])
             except:
                 pass
         
