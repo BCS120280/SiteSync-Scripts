@@ -1,435 +1,547 @@
-# Ignition 8.1.x - Gateway Timer Script
-# Name: SiteSyncStatus/health.unified
-#  Dedicated thread, Fixed Delay, 60,000ms
+# ==================================================================================================
+# UnifiedHealthCheck - Ignition 8.1.x Gateway Timer Script
+# - Fixes ACT_IDX_KEY NameError
+# - TLS bypass is configurable (optional tags): SiteSyncBypassSSL, PIAdapterBypassSSL, ExtraURLBypassSSL
+# - Fast ThingPark scan: NON-recursive browse + cached folders + throttling
+# ==================================================================================================
 
-import socket, time, traceback
-
-# Bind system safely
-try:
-    import system as SYS
-except:
+def _entrypoint():
     import system
-    SYS = system
+    import socket
+    import traceback
 
-LOG = None
-try:
-    LOG = SYS.util.getLogger("health.unified")
-except:
-    LOG = None
+    log = system.util.getLogger("UnifiedHealthCheck")
+    g = system.util.getGlobals()
 
-PROVIDER    = "[default]"
-HEALTH_BASE = PROVIDER + "Health"
-CFG_BASE    = HEALTH_BASE + "/Config"
-DBG_BASE    = HEALTH_BASE + "/Debug"
+    HEALTH_ROOT = "[default]Health"
+    CFG_ROOT    = HEALTH_ROOT + "/Config"
+    DBG_ROOT    = HEALTH_ROOT + "/Debug"
 
-SERVICES = [
-    "SiteSync_API",
-    "MQTT_Broker",
-    "Azure_Function",
-    "PI_Adapter",
-    "Actility_API",
-    "GeoEvent",
-    "ThingPark_Inbound",
-    "PI_WebAPI",
-    "MQTT_Transmission",
-]
+    ENABLE_TAG        = HEALTH_ROOT + "/ENABLE_UNIFIED_MONITOR"
+    ALARM_TEXT_TAG    = HEALTH_ROOT + "/AlarmDisplayText"
+    HEARTBEAT_TAG     = HEALTH_ROOT + "/ScriptHeartbeat"
+    TIMER_COUNTER_TAG = DBG_ROOT + "/TimerCounter"
+    LAST_RUN_MS_TAG   = DBG_ROOT + "/LastRunMs"
+    LAST_RUN_AT_TAG   = DBG_ROOT + "/LastRunAt"
+    LAST_ERROR_TAG    = DBG_ROOT + "/LastError"
 
-# Time / globals
-now_dt = SYS.date.now()
-now_ms = long(SYS.date.toMillis(now_dt))
+    OVERALL_SERVICES = [
+        "SiteSync_API",
+        "MQTT_Broker",
+        "Azure_Function",
+        "PI_Adapter",
+        "Actility_API",
+        "GeoEvent",
+        "ThingPark_Inbound",
+        "PI_WebAPI",
+        "MQTT_Transmission",
+    ]
 
-g = SYS.util.getGlobals()
-GUARD_KEY = "health.unified.running"
-GUARD_TS  = "health.unified.runningTs"
-GUARD_STALE_MS = 120000  # 2 min
+    # Guard / budgets
+    RUNNING_KEY = "UnifiedHealthCheck.running"
+    RUNNING_SINCE_KEY = "UnifiedHealthCheck.runningSinceMs"
+    GUARD_STALE_MS = 5 * 60 * 1000
+    RUN_BUDGET_MS = 20 * 1000
 
-# --- Always bump heartbeat + counter
-try:
-    SYS.tag.writeBlocking(
-        [HEALTH_BASE + "/ScriptHeartbeat", DBG_BASE + "/LastRunAt"],
-        [now_dt, now_dt]
-    )
-except:
-    pass
+    # ThingPark scan cache
+    TP_CACHE_KEY = "UnifiedHealthCheck.tp.cache"  # dict: root, suffix, folders, refreshedMs
+    TP_LAST_SCAN_KEY = "UnifiedHealthCheck.tp.lastScanMs"
+    TP_LAST_AGE_KEY  = "UnifiedHealthCheck.tp.lastAgeMs"
+    TP_FOLDER_REFRESH_MS = 10 * 60 * 1000
+    TP_MAX_TS_READ = 5000
+    TP_READ_CHUNK  = 500
 
-try:
-    q = SYS.tag.readBlocking([DBG_BASE + "/TimerCounter"])[0]
-    cur = 0
-    if q is not None and q.quality.isGood() and q.value is not None:
-        cur = int(q.value)
-    SYS.tag.writeBlocking([DBG_BASE + "/TimerCounter"], [cur + 1])
-except:
-    pass
+    # ✅ FIX: Actility rotation key
+    ACT_IDX_KEY = "UnifiedHealthCheck.act.idx"
 
-# Re-entrance guard (skip overlaps, but don’t “kill” future runs)
-do_work = True
-try:
-    if bool(g.get(GUARD_KEY, False)):
-        last = long(g.get(GUARD_TS, 0) or 0)
-        if (now_ms - last) < GUARD_STALE_MS:
-            do_work = False
-        else:
-            # stale guard, clear it and proceed
-            g[GUARD_KEY] = False
-except:
-    pass
+    def now_dt():
+        return system.date.now()
 
-if not do_work:
-    # show “skip” as 0ms runtime so you can spot it in Gateway Scripts status
-    try:
-        SYS.tag.writeBlocking([DBG_BASE + "/LastRunMs"], [0])
-    except:
-        pass
-else:
-    start_ms = now_ms
-    g[GUARD_KEY] = True
-    g[GUARD_TS]  = now_ms
+    def now_ms():
+        return long(system.date.toMillis(now_dt()))
 
-    last_error = ""
-
-    # Collect service updates; write them at the end in one bulk write.
-    svc_results = {}  # svc -> dict(ok, msg, latency, lastInboundMs(optional))
-
-    try:
-        # CONFIG READS (safe defaults)
-        # Helper inline: read first good tag value from a list
-        def _read_first(paths, default):
-            try:
-                qvs = SYS.tag.readBlocking(paths)
-                for q in qvs:
-                    try:
-                        if q is not None and q.quality.isGood() and q.value is not None:
-                            return q.value
-                    except:
-                        pass
-            except:
-                pass
+    def safe_str(x, default=""):
+        try:
+            if x is None:
+                return default
+            return str(x)
+        except:
             return default
 
-        broker_host = _read_first([CFG_BASE + "/BrokerHost", CFG_BASE + "/MQTTBrokerHost"], "localhost")
-        broker_port = int(_read_first([CFG_BASE + "/BrokerPort", CFG_BASE + "/MQTTBrokerPort"], 1883))
-
-        mqtt_tx_tag = _read_first(
-            [CFG_BASE + "/MQTTTxConnectedTag", CFG_BASE + "/MQTTTransmissionConnectedTag"],
-            "[MQTT Transmission]Transmission Info/Connected"
-        )
-
-        sitesync_tenant_id = int(_read_first([CFG_BASE + "/SiteSyncTenantId"], 1))
-        sitesync_ui_host   = _read_first([CFG_BASE + "/SiteSyncUIHost"], None)
-        sitesync_ui_port   = int(_read_first([CFG_BASE + "/SiteSyncUIPort"], 8043))
-        sitesync_ui_path   = str(_read_first([CFG_BASE + "/SiteSyncUIPath"], "/") or "/")
-        sitesync_ui_insec  = bool(_read_first([CFG_BASE + "/SiteSyncUIBypassSSL"], False))
-
-        pi_webapi_base     = _read_first([CFG_BASE + "/PIWebAPIBase"], None)
-        pi_webapi_endpoint = str(_read_first([CFG_BASE + "/PIWebAPIEndpoint"], "/system") or "/system")
-        pi_webapi_scheme   = str(_read_first([CFG_BASE + "/PIWebAPIAuthScheme"], "Bearer") or "Bearer")
-        pi_webapi_token    = _read_first([CFG_BASE + "/PIWebAPIToken"], None)
-        pi_webapi_user     = _read_first([CFG_BASE + "/PIWebAPIUsername"], None)
-        pi_webapi_pass     = _read_first([CFG_BASE + "/PIWebAPIPassword"], None)
-        pi_webapi_timeout  = int(_read_first([CFG_BASE + "/PIWebAPITimeoutMs"], 5000))
-        pi_webapi_insec    = bool(_read_first([CFG_BASE + "/PIWebAPIBypassSSL"], False))
-
-        pi_adapter_url     = _read_first([CFG_BASE + "/PIAdapterHealthURL", CFG_BASE + "/PIAdapterBase"], None)
-        pi_adapter_timeout = int(_read_first([CFG_BASE + "/PIAdapterTimeoutMs"], 4000))
-        pi_adapter_insec   = bool(_read_first([CFG_BASE + "/PIAdapterBypassSSL"], True))
-
-        tp_devices_root    = _read_first([CFG_BASE + "/DevicesRoot", CFG_BASE + "/ThingParkDevicesRoot"], None)
-        tp_suffix          = _read_first([CFG_BASE + "/TimestampSuffix", CFG_BASE + "/ThingParkTimestampSuffix"], None)
-        tp_stale_ms        = long(_read_first([CFG_BASE + "/TPStaleMs", CFG_BASE + "/ThingParkStaleMs"], 300000))
-        tp_scan_min_ms     = long(_read_first([CFG_BASE + "/TPScanMinMs", CFG_BASE + "/ThingParkScanMinMs"], 30000))
-
-        azure_url    = _read_first([CFG_BASE + "/Azure_Function_URL", CFG_BASE + "/AzureFunctionURL"], None)
-        geo_url      = _read_first([CFG_BASE + "/GeoEvent_URL", CFG_BASE + "/GeoEventURL"], None)
-        actility_url = _read_first([CFG_BASE + "/Actility_API_URL", CFG_BASE + "/ActilityURL"], None)
-
-        # HTTP CLIENT (safe create)
-        def _client(insecure):
-            try:
-                return SYS.net.httpClient(bypassCertValidation=bool(insecure))
-            except:
-                return SYS.net.httpClient()
-
-        # MQTT TRANSMISSION
+    def qv_value(qv, default=None):
         try:
-            q = SYS.tag.readBlocking([mqtt_tx_tag])[0]
-            ok = bool(q.quality.isGood() and bool(q.value))
-            # age since the Connected tag last changed
-            age_ms = -1
+            if qv is None:
+                return default
             try:
-                age_ms = long(now_ms - long(SYS.date.toMillis(q.timestamp)))
+                if qv.quality is not None and (not qv.quality.isGood()):
+                    return default
             except:
                 pass
-            svc_results["MQTT_Transmission"] = {"ok": ok, "msg": ("" if ok else "Connected tag is False/Bad"), "lat": -1, "inb": age_ms}
-        except Exception as ex:
-            svc_results["MQTT_Transmission"] = {"ok": False, "msg": str(ex), "lat": -1, "inb": -1}
+            return qv.value
+        except:
+            return default
 
-        # MQTT BROKER TCP CONNECT
+    def tag_exists(path):
         try:
-            t0 = time.time()
+            return bool(system.tag.exists(path))
+        except:
+            return False
+
+    def read_tag(path, default=None):
+        try:
+            qv = system.tag.readBlocking([path])[0]
+            v = qv_value(qv, default)
+            return default if v is None else v
+        except:
+            return default
+
+    def write_tags(paths, values):
+        try:
+            system.tag.writeBlocking(paths, values)
+        except Exception as ex:
+            try:
+                log.warn("writeBlocking failed: %s" % safe_str(ex))
+            except:
+                pass
+
+    def set_service(service, ok, status, msg, latency_ms=-1, last_inbound_ms=None, w_paths=None, w_vals=None):
+        base = HEALTH_ROOT + "/" + service
+        t = now_dt()
+        if w_paths is None:
+            w_paths = []
+            w_vals = []
+
+        w_paths.extend([
+            base + "/IsHealthy",
+            base + "/Status",
+            base + "/Message",
+            base + "/LatencyMs",
+            base + "/LastCheck",
+        ])
+        w_vals.extend([
+            bool(ok),
+            safe_str(status),
+            safe_str(msg)[:4000],
+            int(latency_ms) if latency_ms is not None else -1,
+            t,
+        ])
+
+        if ok:
+            w_paths.append(base + "/LastOK")
+            w_vals.append(t)
+
+        if last_inbound_ms is not None:
+            w_paths.append(base + "/LastInboundMs")
+            w_vals.append(int(last_inbound_ms))
+
+        return w_paths, w_vals
+
+    def tcp_connect(host, port, timeout_ms):
+        start = now_ms()
+        try:
+            h = safe_str(host).strip()
+            p = int(port)
+            if not h or p <= 0:
+                return False, 0, "MISCONFIG (host/port)"
+
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(3.0)
             try:
-                s.connect((str(broker_host), int(broker_port)))
-                ok = True
-                msg = ""
-            except Exception as ex:
-                ok = False
-                msg = "TCP connect failed to %s:%s (%s)" % (broker_host, broker_port, ex)
-            try:
-                s.close()
-            except:
-                pass
-            lat = int((time.time() - t0) * 1000.0)
-            svc_results["MQTT_Broker"] = {"ok": ok, "msg": msg, "lat": lat}
-        except Exception as ex:
-            svc_results["MQTT_Broker"] = {"ok": False, "msg": str(ex), "lat": -1}
+                s.settimeout(max(0.2, float(timeout_ms) / 1000.0))
+                s.connect((h, p))
+            finally:
+                try: s.close()
+                except: pass
 
-        # SiteSync API (module call)
+            return True, max(0, now_ms() - start), "TCP OK"
+        except Exception as ex:
+            return False, max(0, now_ms() - start), "TCP FAIL: %s" % safe_str(ex)
+
+    def http_reach(url, timeout_ms, bypass_cert=True, headers=None, username=None, password=None):
+        start = now_ms()
         try:
-            t0 = SYS.date.now()
-            raw = SYS.sitesync.testJoinAPIImpl(int(sitesync_tenant_id))
-            ms = int(SYS.date.millisBetween(t0, SYS.date.now()))
-            txt = "" if raw is None else str(raw)
-            ok = bool(raw) and ("error" not in txt.lower())
-            svc_results["SiteSync_API"] = {"ok": ok, "msg": ("" if ok else txt[:4000]), "lat": ms}
+            u = safe_str(url).strip()
+            if not u:
+                return False, 0, "MISCONFIG (url)"
+
+            system.net.httpGet(
+                url=u,
+                connectTimeout=int(timeout_ms),
+                readTimeout=int(timeout_ms),
+                bypassCertValidation=bool(bypass_cert),
+                username=(username if username else ""),
+                password=(password if password else ""),
+                headerValues=(headers if headers else {}),
+                throwOnError=False
+            )
+            return True, max(0, now_ms() - start), "HTTP reachable"
         except Exception as ex:
-            svc_results["SiteSync_API"] = {"ok": False, "msg": "SiteSync API check failed: %s" % ex, "lat": -1}
+            return False, max(0, now_ms() - start), "HTTP FAIL: %s" % safe_str(ex)
 
-        # ---- PI WEB API ----
-        if pi_webapi_base:
-            try:
-                url = str(pi_webapi_base).rstrip("/") + (pi_webapi_endpoint if pi_webapi_endpoint.startswith("/") else ("/" + pi_webapi_endpoint))
-                headers = {}
-                if pi_webapi_token:
-                    headers["Authorization"] = "%s %s" % (pi_webapi_scheme.strip(), str(pi_webapi_token))
-                t0 = SYS.date.now()
-                resp = _client(pi_webapi_insec).get(
-                    url,
-                    connectTimeout=pi_webapi_timeout,
-                    readTimeout=pi_webapi_timeout,
-                    headers=(headers if headers else None),
-                    username=pi_webapi_user,
-                    password=pi_webapi_pass
-                )
-                ms = int(SYS.date.millisBetween(t0, SYS.date.now()))
-                code = int(resp.getStatusCode())
-                ok = (200 <= code < 300)
-                svc_results["PI_WebAPI"] = {"ok": ok, "msg": ("" if ok else ("HTTP %d" % code)), "lat": ms}
-            except Exception as ex:
-                svc_results["PI_WebAPI"] = {"ok": False, "msg": str(ex), "lat": -1}
-        else:
-            svc_results["PI_WebAPI"] = {"ok": True, "msg": "Skipped: PIWebAPIBase not set", "lat": -1}
+    def normalize_url(base, endpoint):
+        b = safe_str(base).strip()
+        e = safe_str(endpoint).strip()
+        if not b:
+            return ""
+        if not e:
+            return b
+        if not e.startswith("/"):
+            e = "/" + e
+        if b.endswith("/"):
+            b = b[:-1]
+        return b + e
 
-        # ---- PI ADAPTER ----
-        if pi_adapter_url:
-            try:
-                url = str(pi_adapter_url).strip()
-                # if they give a base, add a common status path
-                if url.lower().startswith("http") and ("/" in url[8:]):
-                    full = url
-                else:
-                    full = url.rstrip("/") + "/system/status"
-                t0 = SYS.date.now()
-                resp = _client(pi_adapter_insec).get(
-                    full,
-                    connectTimeout=pi_adapter_timeout,
-                    readTimeout=pi_adapter_timeout
-                )
-                ms = int(SYS.date.millisBetween(t0, SYS.date.now()))
-                code = int(resp.getStatusCode())
-                ok = (200 <= code < 300)
-                svc_results["PI_Adapter"] = {"ok": ok, "msg": ("" if ok else ("HTTP %d" % code)), "lat": ms}
-            except Exception as ex:
-                svc_results["PI_Adapter"] = {"ok": False, "msg": str(ex), "lat": -1}
-        else:
-            svc_results["PI_Adapter"] = {"ok": True, "msg": "Skipped: PIAdapterHealthURL/Base not set", "lat": -1}
-
-        # ---- ThingPark inbound (browse + newest timestamp age, cached) ----
-        if tp_devices_root and tp_suffix:
-            try:
-                cache_t  = long(g.get("tp.cache.t", 0) or 0)
-                cache_ms = g.get("tp.cache.newest", None)
-                cache_ct = int(g.get("tp.cache.count", 0) or 0)
-
-                newest = None
-                count = 0
-
-                if (now_ms - cache_t) < tp_scan_min_ms and cache_ms is not None:
-                    newest = long(cache_ms)
-                    count = cache_ct
-                else:
-                    res = SYS.tag.browse(str(tp_devices_root), {"recursive": True})
-                    paths = []
-                    for r in res.getResults():
-                        fp = ""
-                        try:
-                            fp = str(r["fullPath"])
-                        except:
-                            try:
-                                fp = str(r.get("fullPath"))
-                            except:
-                                fp = str(getattr(r, "fullPath", ""))
-                        if fp.endswith(str(tp_suffix)):
-                            paths.append(fp)
-
-                    count = len(paths)
-                    newest = None
-                    if paths:
-                        qvs = SYS.tag.readBlocking(paths)
-                        for q in qvs:
-                            try:
-                                if q is not None and q.quality.isGood() and q.value is not None:
-                                    ts = long(SYS.date.toMillis(q.value))
-                                    if newest is None or ts > newest:
-                                        newest = ts
-                            except:
-                                pass
-
-                    g["tp.cache.t"] = now_ms
-                    g["tp.cache.newest"] = newest
-                    g["tp.cache.count"] = count
-
-                if newest is None:
-                    svc_results["ThingPark_Inbound"] = {"ok": False, "msg": "No timestamp tags found (root=%s suffix=%s)" % (tp_devices_root, tp_suffix), "lat": -1, "inb": -1}
-                else:
-                    age = long(now_ms - newest)
-                    ok = (age <= tp_stale_ms)
-                    msg = "%d devices; newest age=%dms; stale>%dms" % (count, age, tp_stale_ms)
-                    svc_results["ThingPark_Inbound"] = {"ok": ok, "msg": ("" if ok else msg), "lat": -1, "inb": age}
-            except Exception as ex:
-                svc_results["ThingPark_Inbound"] = {"ok": False, "msg": str(ex), "lat": -1, "inb": -1}
-        else:
-            svc_results["ThingPark_Inbound"] = {"ok": True, "msg": "Skipped: DevicesRoot/TimestampSuffix not set", "lat": -1, "inb": -1}
-
-        # Optional URL checks
-        def _url_check(url, insecure=True):
-            try:
-                t0 = SYS.date.now()
-                resp = _client(insecure).get(str(url), connectTimeout=4000, readTimeout=4000)
-                ms = int(SYS.date.millisBetween(t0, SYS.date.now()))
-                code = int(resp.getStatusCode())
-                ok = (200 <= code < 300)
-                return ok, ms, ("" if ok else ("HTTP %d" % code))
-            except Exception as ex:
-                return False, -1, str(ex)
-
-        if azure_url:
-            ok, ms, msg = _url_check(azure_url, True)
-            svc_results["Azure_Function"] = {"ok": ok, "msg": msg, "lat": ms}
-        else:
-            svc_results["Azure_Function"] = {"ok": True, "msg": "Skipped: Azure_Function_URL not set", "lat": -1}
-
-        if geo_url:
-            ok, ms, msg = _url_check(geo_url, True)
-            svc_results["GeoEvent"] = {"ok": ok, "msg": msg, "lat": ms}
-        else:
-            svc_results["GeoEvent"] = {"ok": True, "msg": "Skipped: GeoEvent_URL not set", "lat": -1}
-
-        if actility_url:
-            ok, ms, msg = _url_check(actility_url, True)
-            svc_results["Actility_API"] = {"ok": ok, "msg": msg, "lat": ms}
-        else:
-            svc_results["Actility_API"] = {"ok": True, "msg": "Skipped: Actility_API_URL not set", "lat": -1}
-
-        # BULK WRITE ALL SERVICE TAGS
-        write_paths = []
-        write_vals  = []
-
-        for svc in SERVICES:
-            base = HEALTH_BASE + "/" + svc
-            r = svc_results.get(svc, {"ok": False, "msg": "No result (script logic)", "lat": -1})
-            ok = bool(r.get("ok", False))
-            msg = str(r.get("msg", "") or "")
-            lat = int(r.get("lat", -1))
-            write_paths += [
-                base + "/IsHealthy",
-                base + "/Status",
-                base + "/Message",
-                base + "/LatencyMs",
-                base + "/LastCheck",
-            ]
-            write_vals += [
-                ok,
-                ("OK" if ok else "BAD"),
-                msg[:4000],
-                lat,
-                now_dt,
-            ]
-            if ok:
-                write_paths.append(base + "/LastOK")
-                write_vals.append(now_dt)
-
-            if "inb" in r:
-                try:
-                    write_paths.append(base + "/LastInboundMs")
-                    write_vals.append(long(r.get("inb", -1)))
-                except:
-                    pass
-
+    def json_list(v):
         try:
-            SYS.tag.writeBlocking(write_paths, write_vals)
-        except Exception as ex:
-            last_error = "writeBlocking(service tags) failed: %s" % ex
+            if v is None:
+                return []
+            s = safe_str(v).strip()
+            if not s:
+                return []
+            obj = system.util.jsonDecode(s)
+            if isinstance(obj, list):
+                out = []
+                for x in obj:
+                    xs = safe_str(x).strip()
+                    if xs:
+                        out.append(xs)
+                return out
+            return []
+        except:
+            return []
 
-        # Overall display strings (based on IsHealthy tags)
+    def update_alarm_display():
+        paths = [HEALTH_ROOT + "/" + s + "/IsHealthy" for s in OVERALL_SERVICES]
         bad = []
         try:
-            is_paths = [HEALTH_BASE + "/" + s + "/IsHealthy" for s in SERVICES]
-            qvs = SYS.tag.readBlocking(is_paths)
-            for i in range(len(qvs)):
+            qvs = system.tag.readBlocking(paths)
+            for i, svc in enumerate(OVERALL_SERVICES):
                 ok = False
                 try:
                     ok = qvs[i].quality.isGood() and bool(qvs[i].value)
                 except:
                     ok = False
                 if not ok:
-                    bad.append(SERVICES[i])
+                    bad.append(svc)
         except:
-            bad = list(SERVICES)
+            bad = list(OVERALL_SERVICES)
 
-        summary = "OK" if not bad else ("BAD: " + ", ".join(bad))
+        txt = "Healthy" if not bad else ("BAD: " + ", ".join(bad))
+        write_tags([ALARM_TEXT_TAG], [txt])
+        return txt
 
-        try:
-            SYS.tag.writeBlocking(
-                [HEALTH_BASE + "/AlarmDisplayText", HEALTH_BASE + "/Fault_Summary"],
-                [summary, summary]
-            )
-        except:
-            pass
+    # start timing
+    t_start = now_ms()
+    deadline = t_start + RUN_BUDGET_MS
 
-        # latch last fault
-        if bad:
+    # Always bump heartbeat + counter so you can SEE the timer firing
+    try:
+        write_tags([HEARTBEAT_TAG, LAST_RUN_AT_TAG], [now_dt(), now_dt()])
+    except:
+        pass
+    try:
+        cur = int(read_tag(TIMER_COUNTER_TAG, 0) or 0)
+        write_tags([TIMER_COUNTER_TAG], [cur + 1])
+    except:
+        pass
+
+    # Re-entrance guard
+    if bool(g.get(RUNNING_KEY, False)):
+        since = long(g.get(RUNNING_SINCE_KEY, 0) or 0)
+        if (now_ms() - since) < GUARD_STALE_MS:
             try:
-                prev = SYS.tag.readBlocking([HEALTH_BASE + "/Last_Fault"])[0]
-                prev_val = "" if (prev is None or (not prev.quality.isGood())) else str(prev.value or "")
-                if prev_val != summary:
-                    SYS.tag.writeBlocking(
-                        [HEALTH_BASE + "/Last_Fault", HEALTH_BASE + "/Last_Fault_At"],
-                        [summary, now_dt]
-                    )
+                if tag_exists(LAST_RUN_MS_TAG):
+                    write_tags([LAST_RUN_MS_TAG], [0])
             except:
                 pass
+            return
+        else:
+            g[RUNNING_KEY] = False
+
+    g[RUNNING_KEY] = True
+    g[RUNNING_SINCE_KEY] = t_start
+
+    try:
+        enabled = bool(read_tag(ENABLE_TAG, True))
+        if not enabled:
+            write_tags([ALARM_TEXT_TAG], ["DISABLED"])
+            return
+
+        # Optional bypass knobs (create these tags if you want to turn warnings off)
+        sitesync_bypass = bool(read_tag(CFG_ROOT + "/SiteSyncBypassSSL", True))
+        piadapter_bypass = bool(read_tag(CFG_ROOT + "/PIAdapterBypassSSL", True))
+        extraurl_bypass = bool(read_tag(CFG_ROOT + "/ExtraURLBypassSSL", True))
+
+        # Bulk config read (missing tags => None)
+        cfg_names = [
+            "BrokerHost","BrokerPort","MQTTTxStatusTag",
+            "SiteSyncUIHost","SiteSyncUIPort","SiteSyncUIExternalIP",
+            "PIWebAPIBase","PIWebAPIEndpoint","PIWebAPIAuthScheme","PIWebAPIUser","PIWebAPIPassword","PIWebAPIToken","PIWebAPITimeoutMs","PIWebAPIInsecureOK",
+            "PIAdapterAPIURL","PIAdapterBase",
+            "DevicesRoot","TimestampSuffix","TPStaleMs","TPScanMinMs",
+            "AzureHealthURL","GeoEventHealthURL",
+            "ActilityHTTPSIPs","ActilityCloudfrontIPs","ActilityHTTPSPort","ActilityMQTTTLSPort","ActilityRequireBoth",
+        ]
+        cfg_paths = [CFG_ROOT + "/" + n for n in cfg_names]
+        qvs = system.tag.readBlocking(cfg_paths)
+        cfg = {}
+        for i, n in enumerate(cfg_names):
+            cfg[n] = qv_value(qvs[i], None)
+
+        failures = []
+        w_paths, w_vals = [], []
+
+        # MQTT Broker (TCP)
+        ok, lat, msg = tcp_connect(cfg.get("BrokerHost"), cfg.get("BrokerPort"), 1500)
+        w_paths, w_vals = set_service("MQTT_Broker", ok, ("OK" if ok else "DOWN"), msg, lat, None, w_paths, w_vals)
+        if not ok: failures.append("MQTT_Broker")
+
+        # MQTT Transmission (connected tag + AGE from tag timestamp)
+        tx_tag = safe_str(cfg.get("MQTTTxStatusTag")).strip()
+        if tx_tag:
+            try:
+                qv = system.tag.readBlocking([tx_tag])[0]
+                tx_ok = bool(qv.quality.isGood() and bool(qv.value))
+                age = None
+                try:
+                    age = max(0, now_ms() - long(system.date.toMillis(qv.timestamp)))
+                except:
+                    age = None
+                w_paths, w_vals = set_service("MQTT_Transmission", tx_ok, ("OK" if tx_ok else "DOWN"),
+                                              ("Connected=%s" % ("True" if tx_ok else "False")),
+                                              0, age, w_paths, w_vals)
+                if not tx_ok: failures.append("MQTT_Transmission")
+            except Exception as ex:
+                w_paths, w_vals = set_service("MQTT_Transmission", False, "ERROR", safe_str(ex), -1, None, w_paths, w_vals)
+                failures.append("MQTT_Transmission")
+        else:
+            w_paths, w_vals = set_service("MQTT_Transmission", False, "MISCONFIG", "MQTTTxStatusTag empty", 0, None, w_paths, w_vals)
+            failures.append("MQTT_Transmission")
+
+        # SiteSync API reachability (https then http)
+        ss_host = safe_str(cfg.get("SiteSyncUIHost")).strip()
+        ss_port = int(cfg.get("SiteSyncUIPort") or 0)
+        if ss_host and ss_port > 0:
+            ok1, lat1, msg1 = http_reach("https://%s:%d/" % (ss_host, ss_port), 2000, bypass_cert=sitesync_bypass)
+            if ok1:
+                ss_ok, ss_lat, ss_msg = True, lat1, msg1
+            else:
+                ok2, lat2, msg2 = http_reach("http://%s:%d/" % (ss_host, ss_port), 2000, bypass_cert=sitesync_bypass)
+                ss_ok, ss_lat, ss_msg = ok2, lat2, ("HTTPS fail; " + msg2)
+            w_paths, w_vals = set_service("SiteSync_API", ss_ok, ("OK" if ss_ok else "DOWN"), ss_msg, ss_lat, None, w_paths, w_vals)
+            if not ss_ok: failures.append("SiteSync_API")
+        else:
+            w_paths, w_vals = set_service("SiteSync_API", False, "MISCONFIG", "SiteSyncUIHost/Port empty", 0, None, w_paths, w_vals)
+            failures.append("SiteSync_API")
+
+        # PI Web API
+        pi_url = normalize_url(cfg.get("PIWebAPIBase"), cfg.get("PIWebAPIEndpoint"))
+        pi_to = int(cfg.get("PIWebAPITimeoutMs") or 5000)
+        pi_to = min(max(pi_to, 250), 5000)
+        pi_insec = bool(cfg.get("PIWebAPIInsecureOK") or False)
+        scheme = safe_str(cfg.get("PIWebAPIAuthScheme")).strip().lower()
+
+        if pi_url and now_ms() < deadline:
+            headers = {"Accept":"application/json"}
+            user = None
+            pw = None
+            if scheme == "bearer":
+                tok = safe_str(cfg.get("PIWebAPIToken")).strip()
+                if tok:
+                    headers["Authorization"] = "Bearer " + tok
+            elif scheme == "basic":
+                user = safe_str(cfg.get("PIWebAPIUser")).strip()
+                pw   = safe_str(cfg.get("PIWebAPIPassword")).strip()
+
+            ok, lat, msg = http_reach(pi_url, pi_to, bypass_cert=pi_insec, headers=headers, username=user, password=pw)
+            w_paths, w_vals = set_service("PI_WebAPI", ok, ("OK" if ok else "DOWN"), msg, lat, None, w_paths, w_vals)
+            if not ok: failures.append("PI_WebAPI")
+        else:
+            w_paths, w_vals = set_service("PI_WebAPI", False, "MISCONFIG", "PIWebAPIBase/Endpoint empty or budget", 0, None, w_paths, w_vals)
+            failures.append("PI_WebAPI")
+
+        # --- PI Adapter ---
+        ad_url = safe_str(cfg.get("PIAdapterAPIURL")).strip()
+        if (not ad_url):
+            base = safe_str(cfg.get("PIAdapterBase")).strip()
+            if base:
+                ad_url = base.rstrip("/") + "/api/v1/configuration"
+        if ad_url and now_ms() < deadline:
+            ok, lat, msg = http_reach(ad_url, 3000, bypass_cert=piadapter_bypass, headers={"Accept":"application/json"})
+            w_paths, w_vals = set_service("PI_Adapter", ok, ("OK" if ok else "DOWN"), msg, lat, None, w_paths, w_vals)
+            if not ok: failures.append("PI_Adapter")
+        else:
+            w_paths, w_vals = set_service("PI_Adapter", False, "MISCONFIG", "PIAdapterAPIURL/Base empty or budget", 0, None, w_paths, w_vals)
+            failures.append("PI_Adapter")
+
+        # Optional URLs (Azure / GeoEvent)
+        for svc, key in [("Azure_Function","AzureHealthURL"), ("GeoEvent","GeoEventHealthURL")]:
+            u = safe_str(cfg.get(key)).strip()
+            if u and now_ms() < deadline:
+                ok, lat, msg = http_reach(u, 3000, bypass_cert=extraurl_bypass)
+                w_paths, w_vals = set_service(svc, ok, ("OK" if ok else "DOWN"), msg, lat, None, w_paths, w_vals)
+                if not ok: failures.append(svc)
+            else:
+                w_paths, w_vals = set_service(svc, True, "SKIP", "Not configured or budget", 0, None, w_paths, w_vals)
+
+        # Actility (rotated IP probes; if none configured => SKIP healthy)
+        if now_ms() < deadline:
+            https_ips = json_list(cfg.get("ActilityHTTPSIPs"))
+            cf_ips    = json_list(cfg.get("ActilityCloudfrontIPs"))
+            https_port= int(cfg.get("ActilityHTTPSPort") or 443)
+            mqtt_port = int(cfg.get("ActilityMQTTTLSPort") or 8883)
+            require_both = bool(cfg.get("ActilityRequireBoth") or False)
+
+            candidates = https_ips + cf_ips
+            if not candidates and not https_ips:
+                w_paths, w_vals = set_service("Actility_API", True, "SKIP", "No Actility IPs configured", 0, None, w_paths, w_vals)
+            else:
+                idx = int(g.get(ACT_IDX_KEY, 0) or 0)
+                g[ACT_IDX_KEY] = idx + 2
+
+                def probe_any(ips, port):
+                    if not ips:
+                        return (False, "No IPs")
+                    for j in range(min(2, len(ips))):
+                        ip = ips[(idx + j) % len(ips)]
+                        ok, lat, msg = tcp_connect(ip, port, 1200)
+                        if ok:
+                            return (True, "TCP OK %s:%d" % (ip, port))
+                    return (False, "All probes failed port %d" % port)
+
+                https_ok, https_msg = probe_any(candidates, https_port)
+                mqtt_ok, mqtt_msg   = probe_any(https_ips, mqtt_port) if https_ips else (False, "No MQTT IP list")
+
+                act_ok = (https_ok and mqtt_ok) if require_both else (https_ok or mqtt_ok)
+                act_msg = "HTTPS=%s; MQTT=%s" % (https_msg, mqtt_msg)
+                w_paths, w_vals = set_service("Actility_API", act_ok, ("OK" if act_ok else "DOWN"), act_msg, 0, None, w_paths, w_vals)
+                if not act_ok: failures.append("Actility_API")
+        else:
+            w_paths, w_vals = set_service("Actility_API", True, "SKIP", "Budget", 0, None, w_paths, w_vals)
+
+        # ThingPark inbound (fast scan)
+        if now_ms() < deadline:
+            devices_root = safe_str(cfg.get("DevicesRoot")).strip()
+            suffix = safe_str(cfg.get("TimestampSuffix")).strip()
+            stale_ms = int(cfg.get("TPStaleMs") or 300000)
+            scan_min_ms = int(cfg.get("TPScanMinMs") or 60000)
+
+            if not devices_root or not suffix:
+                w_paths, w_vals = set_service("ThingPark_Inbound", False, "MISCONFIG", "DevicesRoot/TimestampSuffix empty", 0, None, w_paths, w_vals)
+                failures.append("ThingPark_Inbound")
+            else:
+                last_scan = long(g.get(TP_LAST_SCAN_KEY, 0) or 0)
+                if (now_ms() - last_scan) < scan_min_ms:
+                    cached_age = g.get(TP_LAST_AGE_KEY, None)
+                    if cached_age is None:
+                        w_paths, w_vals = set_service("ThingPark_Inbound", True, "SKIP", "Throttled (no cache yet)", 0, None, w_paths, w_vals)
+                    else:
+                        ok = (int(cached_age) <= stale_ms)
+                        w_paths, w_vals = set_service("ThingPark_Inbound", ok, ("OK" if ok else "STALE"),
+                                                      "Throttled cached age=%dms" % int(cached_age),
+                                                      0, int(cached_age), w_paths, w_vals)
+                        if not ok: failures.append("ThingPark_Inbound")
+                else:
+                    cache = g.get(TP_CACHE_KEY, None)
+                    if not isinstance(cache, dict):
+                        cache = {}
+
+                    cache_root = cache.get("root", None)
+                    cache_suf  = cache.get("suffix", None)
+                    folders    = cache.get("folders", None)
+                    refreshed  = long(cache.get("refreshedMs", 0) or 0)
+
+                    if (folders is None) or (cache_root != devices_root) or (cache_suf != suffix) or ((now_ms() - refreshed) > TP_FOLDER_REFRESH_MS):
+                        folders = []
+                        br = system.tag.browse(devices_root)  # NON-recursive
+                        for r in br.getResults():
+                            try:
+                                if bool(r.get("hasChildren", False)):
+                                    fp = r.get("fullPath", None)
+                                    if fp is not None:
+                                        folders.append(fp.toString() if hasattr(fp, "toString") else str(fp))
+                            except:
+                                pass
+                        cache = {"root": devices_root, "suffix": suffix, "folders": folders, "refreshedMs": now_ms()}
+                        g[TP_CACHE_KEY] = cache
+
+                    if not folders:
+                        w_paths, w_vals = set_service("ThingPark_Inbound", False, "DOWN", "No device folders under DevicesRoot", 0, None, w_paths, w_vals)
+                        failures.append("ThingPark_Inbound")
+                    else:
+                        suf = suffix[1:] if suffix.startswith("/") else suffix
+                        ts_paths = [("%s/%s" % (f, suf)) for f in folders]
+                        if len(ts_paths) > TP_MAX_TS_READ:
+                            ts_paths = ts_paths[:TP_MAX_TS_READ]
+
+                        newest = None
+                        for i in range(0, len(ts_paths), TP_READ_CHUNK):
+                            if now_ms() >= deadline:
+                                break
+                            chunk = ts_paths[i:i+TP_READ_CHUNK]
+                            qvs2 = system.tag.readBlocking(chunk)
+                            for qv2 in qvs2:
+                                try:
+                                    if (qv2 is None) or (not qv2.quality.isGood()) or (qv2.value is None):
+                                        continue
+                                    v = qv2.value
+                                    if hasattr(v, "getTime"):
+                                        tms = long(v.getTime())
+                                    else:
+                                        tms = long(v)
+                                        if tms < 100000000000:
+                                            tms *= 1000
+                                    if newest is None or tms > newest:
+                                        newest = tms
+                                except:
+                                    pass
+
+                        g[TP_LAST_SCAN_KEY] = now_ms()
+
+                        if newest is None:
+                            w_paths, w_vals = set_service("ThingPark_Inbound", False, "STALE", "No valid timestamps found (check suffix)", 0, None, w_paths, w_vals)
+                            failures.append("ThingPark_Inbound")
+                        else:
+                            age = max(0, now_ms() - newest)
+                            g[TP_LAST_AGE_KEY] = int(age)
+                            ok = (age <= stale_ms)
+                            msg = "NewestAgeMs=%d (stale>%d)" % (int(age), int(stale_ms))
+                            w_paths, w_vals = set_service("ThingPark_Inbound", ok, ("OK" if ok else "STALE"), msg, 0, int(age), w_paths, w_vals)
+                            if not ok: failures.append("ThingPark_Inbound")
+        else:
+            w_paths, w_vals = set_service("ThingPark_Inbound", True, "SKIP", "Budget", 0, None, w_paths, w_vals)
+
+        # Commit all service writes in one shot
+        if w_paths:
+            write_tags(w_paths, w_vals)
+
+        # Update AlarmDisplayText from IsHealthy tags
+        update_alarm_display()
+
+        # Clear last error
+        if tag_exists(LAST_ERROR_TAG):
+            write_tags([LAST_ERROR_TAG], [""])
+
+        # Runtime
+        if tag_exists(LAST_RUN_MS_TAG):
+            write_tags([LAST_RUN_MS_TAG], [int(now_ms() - t_start)])
 
     except Exception as ex:
-        last_error = "%s\n%s" % (ex, traceback.format_exc())
-        if LOG:
-            try: LOG.error("health.unified failed: %s" % ex)
-            except: pass
+        err = traceback.format_exc()
+        try:
+            log.error("UnifiedHealthCheck failed: %s" % safe_str(ex))
+        except:
+            pass
+        if tag_exists(LAST_ERROR_TAG):
+            write_tags([LAST_ERROR_TAG], [err[:3900]])
+        write_tags([ALARM_TEXT_TAG], ["SCRIPT ERROR: %s" % safe_str(ex)])
 
     finally:
-        end_dt = SYS.date.now()
-        end_ms = long(SYS.date.toMillis(end_dt))
-        dur = int(end_ms - start_ms)
-
         try:
-            SYS.tag.writeBlocking(
-                [DBG_BASE + "/LastRunMs", DBG_BASE + "/LastError"],
-                [dur, (last_error or "")]
-            )
+            if tag_exists(LAST_RUN_AT_TAG):
+                write_tags([LAST_RUN_AT_TAG], [now_dt()])
         except:
             pass
+        g[RUNNING_KEY] = False
+        g[RUNNING_SINCE_KEY] = 0
 
-        try:
-            g[GUARD_KEY] = False
-        except:
-            pass
+_entrypoint()
