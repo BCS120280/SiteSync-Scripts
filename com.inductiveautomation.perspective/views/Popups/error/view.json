@@ -1,0 +1,81 @@
+{
+  "custom": {},
+  "params": {
+    "errorText": "value"
+  },
+  "propConfig": {
+    "params.errorText": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 174,
+      "width": 310
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Label"
+        },
+        "position": {
+          "height": 31.999999999999993,
+          "width": 205,
+          "x": 53,
+          "y": 42.63
+        },
+        "props": {
+          "style": {
+            "color": "#FFFFFF",
+            "fontSize": 23,
+            "fontWeight": "bolder"
+          },
+          "text": "An Error Occured"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Label_2"
+        },
+        "position": {
+          "height": 21,
+          "width": 275,
+          "x": 18.5,
+          "y": 89.88
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "path": "view.params.errorText"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "style": {
+            "color": "#FFFFFF",
+            "fontSize": 13,
+            "fontWeight": "normal",
+            "textAlign": "center"
+          }
+        },
+        "type": "ia.display.label"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "style": {
+        "backgroundColor": "#AC0000"
+      }
+    },
+    "type": "ia.container.coord"
+  }
+}

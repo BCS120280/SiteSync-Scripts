@@ -1,0 +1,120 @@
+/* Direct stylesheet authoring is an advanced feature. Knowledge of CSS required.*/
+
+/* Direct stylesheet authoring is an advanced feature. Knowledge of CSS required.*/
+
+.ia_passwordFieldComponent__visibilityLink{
+	filter: invert(60%) sepia(24%) saturate(533%) hue-rotate(128deg) brightness(87%) contrast(92%);
+}
+
+.ia_passwordFieldComponent__visibilityLink ia_passwordFieldComponent__visibilityLink--active{
+
+	filter: invert(60%) sepia(24%) saturate(533%) hue-rotate(128deg) brightness(87%) contrast(92%);
+}
+
+.ia_pager__page--active{
+	
+	background:#5c9996
+	
+}
+
+.button-primary{
+	background:#5c9996
+}
+
+
+div #mainTable .ia_table__headContainer, .ia_table__footContainer {
+    background-color: #CDE2F3;
+    box-shadow: none;
+}
+
+div #mainTable .ia_table__head {
+    font-weight: bold;
+    font-size: 1rem;
+    text-transform: capitalize;
+}
+
+div #mainTable .table-container .t .thc .content {
+    padding: 0px;
+}
+
+div #mainTable .t .th-container .th .header {
+    flex: 1 0 auto;
+    display: inline-flex;
+    margin: 10px 0px 10px 0px;
+}
+
+div #mainTable .t .tc {
+    position: relative;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    margin-left: 25px;
+}
+
+div #mainTable .table-container .t .tr-group .tr {
+    min-height: 0px;
+    border-bottom: #B0CFE8;
+    border-width: 2px;
+    border-bottom-style: solid;
+}
+
+div #mainTable .table-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 100%;
+    min-width: 100%;
+    max-height: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: 15px;
+    border-style: solid;
+    border-width: 2px;
+    border-color: #0B487F;
+}
+
+div #mainTable .pager-container .pager .size-options {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: flex-start;
+    margin: 0px 25px 0px 25px;
+}
+
+div #mainTable .ia_pager {
+    background-color: #B0CFE8;
+    color: var(--neutral-90);
+    box-shadow: none;
+    line-height: 0.875rem;
+    font-size: 0.75rem;
+    padding: 0px;
+}
+
+div #mainTable .pager-container .pager {
+    width: 100%;
+    height: auto;
+    display: flex;
+    justify-content: center;
+    box-shadow: none;
+    border: none;
+    padding: 4px;
+}
+
+div #mainTable .pager-container .pager .center {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    margin: 10px 0px 10px 0px;
+}
+
+/* loading spinner animation thing */ 
+@keyframes spinner {
+    0% {transform: rotate(0deg);}
+    100% {transform: rotate(360deg); }
+}

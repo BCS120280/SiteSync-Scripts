@@ -1,0 +1,94 @@
+{
+  "custom": {},
+  "params": {
+    "value": {
+      "tagPath": "[default]PI Integration/unit10/0141"
+    }
+  },
+  "propConfig": {
+    "params.value": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 40,
+      "width": 40
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Icon",
+          "tooltip": {
+            "enabled": true
+          }
+        },
+        "position": {
+          "basis": "30px"
+        },
+        "propConfig": {
+          "meta.tooltip.text": {
+            "binding": {
+              "config": {
+                "path": "parent.custom.isActivated"
+              },
+              "transforms": [
+                {
+                  "code": "\tif value:\n\t\treturn \"Has been sent to PI\"\n\telse:\n\t\treturn \"Has not been sent to PI\"\n\treturn value",
+                  "type": "script"
+                }
+              ],
+              "type": "property"
+            }
+          },
+          "props.path": {
+            "binding": {
+              "config": {
+                "path": "parent.custom.isActivated"
+              },
+              "transforms": [
+                {
+                  "code": "\tif value:\n\t\treturn \"material/check_circle\"\n\telse:\n\t\treturn \"material/close\"",
+                  "type": "script"
+                }
+              ],
+              "type": "property"
+            }
+          }
+        },
+        "type": "ia.display.icon"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "propConfig": {
+      "custom.isActivated": {
+        "binding": {
+          "config": {
+            "fallbackDelay": 2.5,
+            "mode": "indirect",
+            "references": {
+              "tagPath": "{view.params.value.tagPath}"
+            },
+            "tagPath": "{tagPath}.activated"
+          },
+          "transforms": [
+            {
+              "code": "\tif value \u003d\u003d None:\n\t\treturn True\n\tif quality.badOrError:\n\t\treturn False\n\treturn value",
+              "type": "script"
+            }
+          ],
+          "type": "tag"
+        }
+      }
+    },
+    "props": {
+      "direction": "column"
+    },
+    "type": "ia.container.flex"
+  }
+}

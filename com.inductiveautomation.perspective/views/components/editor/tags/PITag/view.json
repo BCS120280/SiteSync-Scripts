@@ -1,0 +1,233 @@
+{
+  "custom": {
+    "subtags": []
+  },
+  "params": {
+    "rootTagPath": "W2RlZmF1bHRdUEkgSW50ZWdyYXRpb24vdW5pdDEwLzAxNDE\u003d"
+  },
+  "propConfig": {
+    "custom.subtags": {
+      "persistent": true
+    },
+    "params.rootTagPath": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "events": {
+              "dom": {
+                "onClick": {
+                  "config": {
+                    "page": "/tags"
+                  },
+                  "scope": "C",
+                  "type": "nav"
+                }
+              }
+            },
+            "meta": {
+              "name": "close"
+            },
+            "position": {
+              "basis": "30px"
+            },
+            "props": {
+              "path": "material/chevron_left"
+            },
+            "type": "ia.display.icon"
+          },
+          {
+            "children": [
+              {
+                "meta": {
+                  "name": "Label"
+                },
+                "position": {
+                  "grow": 1
+                },
+                "propConfig": {
+                  "props.text": {
+                    "binding": {
+                      "config": {
+                        "path": "/root.custom.t"
+                      },
+                      "transforms": [
+                        {
+                          "code": "\treturn value.replace(tagOperations.getMonitoredTagPath() + \"/\", \"\")",
+                          "type": "script"
+                        }
+                      ],
+                      "type": "property"
+                    }
+                  }
+                },
+                "props": {
+                  "style": {
+                    "classes": "dark-green-header"
+                  }
+                },
+                "type": "ia.display.label"
+              }
+            ],
+            "meta": {
+              "name": "FlexContainer"
+            },
+            "position": {
+              "shrink": 0
+            },
+            "props": {
+              "direction": "column",
+              "style": {
+                "marginLeft": "2%"
+              }
+            },
+            "type": "ia.container.flex"
+          }
+        ],
+        "custom": {
+          "PIPath": "",
+          "isInPI": false
+        },
+        "meta": {
+          "name": "header"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "style": {
+            "backgroundColor": "#8080804D",
+            "borderBottomLeftRadius": "12px",
+            "borderBottomRightRadius": "12px",
+            "borderTopLeftRadius": "12px",
+            "borderTopRightRadius": "12px",
+            "padding": "3%"
+          }
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "children": [
+          {
+            "events": {
+              "dom": {
+                "onClick": {
+                  "config": {
+                    "script": "\tutils.showLoading()\n\ttry:\n\t\t##white list\n\t\tadapterResult \u003d adapter.addToDataSelection([self.view.getChild(\"root\").custom.t])\n\t\tsystem.perspective.print(adapterResult)\n\t\tif utils.isSuccess(adapterResult):\n\t\t\t\n\t\t\n\t\t\t##check if tag exists\n\t\t\tif AF.doesPITagExist(self.view.getChild(\"root\").custom.t)[\u0027status\u0027]:\n\t\t\t\tPIresult \u003d AF.updatePITag(self.view.getChild(\"root\").custom.t)\n\t\t\telse:\t\n\t\t\t\tPIresult \u003d AF.createPITag(self.view.getChild(\"root\").custom.t)\n\t\t\tif utils.isSuccess(PIresult):\n\t\t\t\t\n\t\t\t\tutils.showSuccess(\"Successfully sent tags to PI\")\n\t\t\t\tsystem.perspective.sendMessage(\"isTagInPI\")\n\t\t\telse:\n\t\t\t\tutils.showError(utils.getResultMessage(PIresult))\n\t\telse:\n\t\t\tutils.showError(utils.getResultMessage(adapterResult))\n\texcept Exception as e:\n\t\tutils.showError(str(e))\n\tfinally:\n\t\tutils.hideLoading()"
+                  },
+                  "scope": "G",
+                  "type": "script"
+                }
+              }
+            },
+            "meta": {
+              "name": "Button"
+            },
+            "position": {
+              "shrink": 0
+            },
+            "props": {
+              "image": {
+                "icon": {
+                  "path": "material/send"
+                }
+              },
+              "text": "Send to PI"
+            },
+            "type": "ia.input.button"
+          }
+        ],
+        "meta": {
+          "name": "actions"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "justify": "flex-end"
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "meta": {
+          "name": "FlexRepeater"
+        },
+        "position": {
+          "grow": 1,
+          "shrink": 0
+        },
+        "propConfig": {
+          "props.instances": {
+            "binding": {
+              "config": {
+                "path": "parent.custom.subTags"
+              },
+              "transforms": [
+                {
+                  "code": "\titems \u003d []\n\tfor i in value:\n\t\tj \u003d {\n\t\t  \"instanceStyle\": {\n\t\t    \"classes\": \"\"\n\t\t  },\n\t\t  \"instancePosition\": {},\n\t\t  \"subTagPath\": i[\u0027fullPath\u0027]\n\t\t}\n\t\titems.append(j)\n\treturn items",
+                  "type": "script"
+                }
+              ],
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "direction": "column",
+          "elementPosition": {
+            "shrink": 0
+          },
+          "path": "components/editor/tags/subtags/subtag",
+          "useDefaultViewWidth": false
+        },
+        "type": "ia.display.flex-repeater"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "propConfig": {
+      "custom.subTags": {
+        "binding": {
+          "config": {
+            "path": "this.custom.t"
+          },
+          "transforms": [
+            {
+              "code": "\tif value !\u003d None and len(value) \u003e 0:\n\t\treturn tagOperations.getAttributesForTag(value)\n\telse:\n\t\treturn []\n",
+              "type": "script"
+            }
+          ],
+          "type": "property"
+        }
+      },
+      "custom.t": {
+        "binding": {
+          "config": {
+            "path": "view.params.rootTagPath"
+          },
+          "transforms": [
+            {
+              "code": "\tfrom base64 import b64decode\n\treturn b64decode(value)",
+              "type": "script"
+            }
+          ],
+          "type": "property"
+        }
+      }
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "padding": "2%"
+      }
+    },
+    "type": "ia.container.flex"
+  }
+}

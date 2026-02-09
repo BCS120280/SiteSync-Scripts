@@ -1,0 +1,276 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "events": {
+              "dom": {
+                "onClick": {
+                  "config": {
+                    "id": "adapter-mqtt",
+                    "type": "close"
+                  },
+                  "scope": "C",
+                  "type": "dock"
+                }
+              }
+            },
+            "meta": {
+              "name": "close"
+            },
+            "position": {
+              "basis": "30px"
+            },
+            "props": {
+              "path": "material/close"
+            },
+            "type": "ia.display.icon"
+          },
+          {
+            "children": [
+              {
+                "meta": {
+                  "name": "Label"
+                },
+                "position": {
+                  "grow": 1
+                },
+                "props": {
+                  "style": {
+                    "classes": "dark-green-header"
+                  },
+                  "text": "Pi Adapter MQTT Settings"
+                },
+                "type": "ia.display.label"
+              }
+            ],
+            "meta": {
+              "name": "FlexContainer"
+            },
+            "position": {
+              "shrink": 0
+            },
+            "props": {
+              "direction": "column",
+              "style": {
+                "marginLeft": "3%"
+              }
+            },
+            "type": "ia.container.flex"
+          }
+        ],
+        "custom": {
+          "PIPath": "",
+          "isInPI": false
+        },
+        "meta": {
+          "name": "header"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "style": {
+            "backgroundColor": "#8080804D",
+            "borderBottomLeftRadius": "12px",
+            "borderBottomRightRadius": "12px",
+            "borderTopLeftRadius": "12px",
+            "borderTopRightRadius": "12px",
+            "padding": "3%"
+          }
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "children": [
+          {
+            "meta": {
+              "name": "editItems"
+            },
+            "position": {
+              "shrink": 0
+            },
+            "propConfig": {
+              "props.instances[0].value": {
+                "binding": {
+                  "config": {
+                    "bidirectional": true,
+                    "path": "/root.custom.settings.brokerURL"
+                  },
+                  "type": "property"
+                }
+              },
+              "props.instances[1].value": {
+                "binding": {
+                  "config": {
+                    "bidirectional": true,
+                    "path": "/root.custom.settings.username"
+                  },
+                  "type": "property"
+                }
+              },
+              "props.instances[2].value": {
+                "binding": {
+                  "config": {
+                    "bidirectional": true,
+                    "path": "/root.custom.settings.password"
+                  },
+                  "type": "property"
+                }
+              },
+              "props.instances[3].value": {
+                "binding": {
+                  "config": {
+                    "path": "/root.custom.settings.topic-prefix"
+                  },
+                  "type": "property"
+                }
+              }
+            },
+            "props": {
+              "direction": "column",
+              "instances": [
+                {
+                  "instancePosition": {},
+                  "instanceStyle": {
+                    "classes": ""
+                  },
+                  "label": "MQTT Broker URL"
+                },
+                {
+                  "instancePosition": {},
+                  "instanceStyle": {
+                    "classes": ""
+                  },
+                  "label": "username"
+                },
+                {
+                  "helptext": "",
+                  "instancePosition": {},
+                  "instanceStyle": {
+                    "classes": ""
+                  },
+                  "label": "password"
+                },
+                {
+                  "helptext": "",
+                  "instancePosition": {},
+                  "instanceStyle": {
+                    "classes": ""
+                  },
+                  "label": "Topic prefix"
+                }
+              ],
+              "path": "components/settings/components/form-component",
+              "useDefaultViewWidth": false
+            },
+            "type": "ia.display.flex-repeater"
+          },
+          {
+            "meta": {
+              "name": "EmbeddedView"
+            },
+            "position": {
+              "shrink": 0
+            },
+            "propConfig": {
+              "props.params.value": {
+                "binding": {
+                  "config": {
+                    "bidirectional": true,
+                    "path": "/root.custom.settings.mqttType"
+                  },
+                  "type": "property"
+                }
+              }
+            },
+            "props": {
+              "params": {
+                "allowOverride": false,
+                "helptext": "",
+                "label": "MQTT Type",
+                "options": [
+                  {
+                    "label": "SparkplugB",
+                    "value": "SPARKPLUGB"
+                  },
+                  {
+                    "label": "MQTT",
+                    "value": "MQTT"
+                  }
+                ]
+              },
+              "path": "components/settings/components/form-component-dropdown",
+              "style": {
+                "overflow": "auto"
+              },
+              "useDefaultViewHeight": true
+            },
+            "type": "ia.display.view"
+          }
+        ],
+        "meta": {
+          "name": "FlexContainer"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "direction": "column",
+          "style": {
+            "borderBottomLeftRadius": "12px",
+            "borderBottomRightRadius": "12px",
+            "borderColor": "grey",
+            "borderStyle": "solid",
+            "borderTopLeftRadius": "12px",
+            "borderTopRightRadius": "12px",
+            "padding": "2%"
+          }
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "meta": {
+          "name": "Button"
+        },
+        "position": {
+          "basis": "34px"
+        },
+        "props": {
+          "image": {
+            "icon": {
+              "path": "material/save"
+            }
+          },
+          "text": "Save"
+        },
+        "type": "ia.input.button"
+      }
+    ],
+    "custom": {
+      "settings": {
+        "brokerURL": "https://postman-echo.com/get",
+        "mqttType": "",
+        "password": "value",
+        "topic-prefix": "mpc",
+        "username": "value"
+      }
+    },
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "backgroundColor": "white",
+        "margin": "2%",
+        "padding": "2%"
+      }
+    },
+    "type": "ia.container.flex"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "meta": {
+              "name": "Label"
+            },
+            "position": {
+              "basis": "32px"
+            },
+            "props": {
+              "style": {
+                "color": "#14487F",
+                "fontWeight": "bold",
+                "textAlign": "center"
+              },
+              "text": "Loading..."
+            },
+            "type": "ia.display.label"
+          },
+          {
+            "meta": {
+              "name": "Icon"
+            },
+            "position": {
+              "basis": "35px"
+            },
+            "props": {
+              "style": {
+                "animation": "1.5s linear infinite spinner",
+                "basis": "35px",
+                "border": "solid 5px #cfd0d1",
+                "borderBottomColor": "#14487F",
+                "borderRadius": "100%",
+                "height": "35px",
+                "width": "35px"
+              }
+            },
+            "type": "ia.display.icon"
+          }
+        ],
+        "meta": {
+          "name": "FlexContainer"
+        },
+        "position": {
+          "basis": "100%"
+        },
+        "props": {
+          "alignItems": "center",
+          "direction": "column",
+          "justify": "center",
+          "style": {
+            "borderStyle": "hidden",
+            "cursor": "progress",
+            "padding": 5
+          }
+        },
+        "type": "ia.container.flex"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "type": "ia.container.flex"
+  }
+}

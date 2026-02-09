@@ -1,0 +1,84 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "custom": {
+          "api": {
+            "apiURL": "https://pgwgen002923.mgroupnet.com:5590/api/v1/configuration",
+            "datasourceID": "MQTT1",
+            "format": "generic",
+            "id": 1
+          }
+        },
+        "events": {
+          "system": {
+            "onStartup": {
+              "config": {
+                "script": "\tself.custom.api \u003d adapter.getAdapterSettings()"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "FlexContainer"
+        },
+        "position": {
+          "basis": "200px"
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "meta": {
+          "name": "Label"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "connectTimeout": 60000,
+                "enableCookies": true,
+                "enableValueCache": true,
+                "polling": {
+                  "enabled": false,
+                  "rate": "30"
+                },
+                "request": {
+                  "auth": {
+                    "type": "None",
+                    "value": ""
+                  },
+                  "method": "GET",
+                  "url": "{../FlexContainer.custom.api.apiURL} + \"/\" + {../FlexContainer.custom.api.datasourceID} + \"/DataSelection\""
+                },
+                "socketTimeout": 60000
+              },
+              "transforms": [
+                {
+                  "code": "\titems \u003d []\n\tfor i in value:\n\t\tif \"Test/Trackonomy-eseal3\" in i[\u0027streamId\u0027]:\n\t\t\titems.append(i)\n\t\t\n\treturn items",
+                  "type": "script"
+                }
+              ],
+              "type": "http"
+            }
+          }
+        },
+        "type": "ia.display.label"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "type": "ia.container.flex"
+  }
+}

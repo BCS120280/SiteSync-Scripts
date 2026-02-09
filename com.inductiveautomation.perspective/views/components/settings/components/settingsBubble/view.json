@@ -1,0 +1,99 @@
+{
+  "custom": {},
+  "params": {
+    "dockID": "",
+    "headerText": "value"
+  },
+  "propConfig": {
+    "params.dockID": {
+      "paramDirection": "input",
+      "persistent": true
+    },
+    "params.headerText": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 120
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "meta": {
+              "name": "Label"
+            },
+            "position": {
+              "shrink": 0
+            },
+            "propConfig": {
+              "props.text": {
+                "binding": {
+                  "config": {
+                    "path": "view.params.headerText"
+                  },
+                  "type": "property"
+                }
+              }
+            },
+            "type": "ia.display.label"
+          },
+          {
+            "events": {
+              "dom": {
+                "onClick": {
+                  "config": {
+                    "id": "{view.params.dockID}",
+                    "type": "open"
+                  },
+                  "scope": "C",
+                  "type": "dock"
+                }
+              }
+            },
+            "meta": {
+              "name": "Icon"
+            },
+            "position": {
+              "basis": "30px"
+            },
+            "props": {
+              "path": "material/chevron_right"
+            },
+            "type": "ia.display.icon"
+          }
+        ],
+        "meta": {
+          "name": "FlexContainer"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "justify": "space-between",
+          "style": {
+            "backgroundColor": "#8080805E",
+            "borderBottomLeftRadius": "12px",
+            "borderBottomRightRadius": "12px",
+            "borderTopLeftRadius": "12px",
+            "borderTopRightRadius": "12px",
+            "margin": "2%",
+            "padding": "2%"
+          }
+        },
+        "type": "ia.container.flex"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "type": "ia.container.flex"
+  }
+}

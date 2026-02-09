@@ -1,0 +1,54 @@
+{
+  "custom": {},
+  "params": {
+    "value": {
+      "tagPath": "[default]PI Integration/unit10/0141"
+    }
+  },
+  "propConfig": {
+    "params.value": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 40,
+      "width": 40
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Icon"
+        },
+        "position": {
+          "basis": "30px"
+        },
+        "props": {
+          "path": "material/search"
+        },
+        "type": "ia.display.icon"
+      }
+    ],
+    "events": {
+      "dom": {
+        "onClick": {
+          "config": {
+            "script": "\ttry:\n\t\t#system.perspective.print(self.view.params.value)\n\t\tfrom base64 import b64encode\n\t\tpath \u003d b64encode(self.view.params.value)\n\t\tsystem.perspective.navigate(page\u003d\"/tags/{0}\".format(path))\n\texcept Exception as e:\n\t\tsystem.perspective.print(e)"
+          },
+          "scope": "G",
+          "type": "script"
+        }
+      }
+    },
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "type": "ia.container.flex"
+  }
+}

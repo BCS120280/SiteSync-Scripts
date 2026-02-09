@@ -1,0 +1,194 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "events": {
+              "dom": {
+                "onClick": {
+                  "config": {
+                    "id": "tags",
+                    "type": "close"
+                  },
+                  "scope": "C",
+                  "type": "dock"
+                }
+              }
+            },
+            "meta": {
+              "name": "close"
+            },
+            "position": {
+              "basis": "30px"
+            },
+            "props": {
+              "path": "material/close"
+            },
+            "type": "ia.display.icon"
+          },
+          {
+            "children": [
+              {
+                "meta": {
+                  "name": "Label"
+                },
+                "position": {
+                  "grow": 1
+                },
+                "props": {
+                  "style": {
+                    "classes": "dark-green-header"
+                  },
+                  "text": "Tag Source Folder"
+                },
+                "type": "ia.display.label"
+              }
+            ],
+            "meta": {
+              "name": "FlexContainer"
+            },
+            "position": {
+              "shrink": 0
+            },
+            "props": {
+              "direction": "column",
+              "style": {
+                "marginLeft": "3%"
+              }
+            },
+            "type": "ia.container.flex"
+          }
+        ],
+        "custom": {
+          "PIPath": "",
+          "isInPI": false
+        },
+        "meta": {
+          "name": "header"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "style": {
+            "backgroundColor": "#8080804D",
+            "borderBottomLeftRadius": "12px",
+            "borderBottomRightRadius": "12px",
+            "borderTopLeftRadius": "12px",
+            "borderTopRightRadius": "12px",
+            "padding": "3%"
+          }
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "meta": {
+          "name": "editItems"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "propConfig": {
+          "props.instances[0].value": {
+            "binding": {
+              "config": {
+                "bidirectional": true,
+                "path": "parent.custom.settings.sourceFolder"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "direction": "column",
+          "instances": [
+            {
+              "helptext": "",
+              "instancePosition": {},
+              "instanceStyle": {
+                "classes": ""
+              },
+              "label": "Source Folder"
+            }
+          ],
+          "path": "components/settings/components/form-component",
+          "style": {
+            "borderBottomLeftRadius": "12px",
+            "borderBottomRightRadius": "12px",
+            "borderColor": "grey",
+            "borderStyle": "solid",
+            "borderTopLeftRadius": "12px",
+            "borderTopRightRadius": "12px",
+            "padding": "2%"
+          },
+          "useDefaultViewWidth": false
+        },
+        "type": "ia.display.flex-repeater"
+      },
+      {
+        "events": {
+          "dom": {
+            "onClick": {
+              "config": {
+                "script": "\tr \u003d settings.updateSettings(self.parent.custom.settings)\n\t\n\tif utils.isSuccess(r):\n\t\tutils.showSuccess(\"Updated\")\n\telse:\n\t\tutils.showError(utils.getResultMessage(r))"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "Button"
+        },
+        "position": {
+          "basis": "34px"
+        },
+        "props": {
+          "image": {
+            "icon": {
+              "path": "material/save"
+            }
+          },
+          "text": "Save"
+        },
+        "type": "ia.input.button"
+      }
+    ],
+    "custom": {
+      "settings": {
+        "id": 1,
+        "prefix": "mpc",
+        "sourceFolder": "[default]PI Integration",
+        "transmitter": "TX-001",
+        "useAdapter": true
+      }
+    },
+    "events": {
+      "system": {
+        "onStartup": {
+          "config": {
+            "script": "\timport json \n\ts \u003d system.piAdapter.getSettings(\"generic\")\n\tself.custom.settings \u003d json.loads(s)"
+          },
+          "scope": "G",
+          "type": "script"
+        }
+      }
+    },
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "backgroundColor": "white",
+        "margin": "2%",
+        "padding": "2%"
+      }
+    },
+    "type": "ia.container.flex"
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Label"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "style": {
+            "borderBottomStyle": "solid",
+            "fontSize": "X-Large",
+            "fontWeight": "bold"
+          },
+          "text": "Settings"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "FlexRepeater"
+        },
+        "position": {
+          "grow": 1,
+          "shrink": 0
+        },
+        "props": {
+          "direction": "column",
+          "instances": [
+            {
+              "dockID": "adapter-api",
+              "headerText": "Adapter API",
+              "instancePosition": {},
+              "instanceStyle": {
+                "classes": ""
+              }
+            },
+            {
+              "dockID": "af-api",
+              "headerText": "PI Web API",
+              "instancePosition": {},
+              "instanceStyle": {
+                "classes": ""
+              }
+            },
+            {
+              "dockID": "adapter-mqtt",
+              "headerText": "PI Adapter MQTT Connection",
+              "instancePosition": {},
+              "instanceStyle": {
+                "classes": ""
+              }
+            },
+            {
+              "dockID": "tags",
+              "headerText": "Ignition Tags",
+              "instancePosition": {},
+              "instanceStyle": {
+                "classes": ""
+              }
+            }
+          ],
+          "path": "components/settings/components/settingsBubble",
+          "useDefaultViewHeight": false,
+          "useDefaultViewWidth": false
+        },
+        "type": "ia.display.flex-repeater"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "padding": "2%"
+      }
+    },
+    "type": "ia.container.flex"
+  }
+}

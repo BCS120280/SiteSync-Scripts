@@ -1,0 +1,104 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "Label"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {
+          "text": "Enter StreamID"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "TextField"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "propConfig": {
+          "props.text": {
+            "binding": {
+              "config": {
+                "bidirectional": true,
+                "path": "parent.custom.streamID"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "type": "ia.input.text-field"
+      },
+      {
+        "events": {
+          "dom": {
+            "onClick": {
+              "config": {
+                "script": "\tutils.showLoading()\n\ttry:\n\t\tres \u003d adapter.removeFromDataSelection(self.parent.custom.streamID)\n\t\tutils.showSuccess(res)\n\texcept Exception as e:\n\t\tsystem.perspective.print(str(e))\n\t\tutils.showError(str(e))\n\tfinally:\n\t\tutils.hideLoading()"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "Button"
+        },
+        "position": {
+          "basis": "34px"
+        },
+        "props": {
+          "image": {
+            "icon": {
+              "path": "material/delete_forever"
+            }
+          },
+          "style": {
+            "backgroundColor": "red",
+            "marginLeft": "15%",
+            "marginRight": "15%",
+            "marginTop": "3%"
+          },
+          "text": "Delete Data Selection"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "meta": {
+          "name": "Label_0"
+        },
+        "position": {
+          "basis": "32px"
+        },
+        "props": {
+          "style": {
+            "fontSize": "x-small",
+            "fontStyle": "italic"
+          },
+          "text": "Deleting selection means data will no longer be collected from that topic"
+        },
+        "type": "ia.display.label"
+      }
+    ],
+    "custom": {
+      "streamID": ""
+    },
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "margin": "3%"
+      }
+    },
+    "type": "ia.container.flex"
+  }
+}

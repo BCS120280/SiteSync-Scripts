@@ -1,0 +1,128 @@
+{
+  "pages": {
+    "/": {
+      "title": "",
+      "viewPath": "components/allTags/activeTags"
+    },
+    "/manage/tags": {
+      "title": "",
+      "viewPath": ""
+    },
+    "/settings": {
+      "docks": {
+        "right": [
+          {
+            "anchor": "fixed",
+            "autoBreakpoint": 480,
+            "content": "cover",
+            "handle": "hide",
+            "iconUrl": "",
+            "id": "adapter-api",
+            "modal": false,
+            "resizable": false,
+            "show": "onDemand",
+            "size": 400,
+            "viewParams": {},
+            "viewPath": "components/settings/api/adapter"
+          },
+          {
+            "anchor": "fixed",
+            "autoBreakpoint": 480,
+            "content": "cover",
+            "handle": "hide",
+            "iconUrl": "",
+            "id": "af-api",
+            "modal": false,
+            "resizable": false,
+            "show": "onDemand",
+            "size": 400,
+            "viewParams": {},
+            "viewPath": "components/settings/api/af"
+          },
+          {
+            "anchor": "fixed",
+            "autoBreakpoint": 480,
+            "content": "cover",
+            "handle": "hide",
+            "iconUrl": "",
+            "id": "adapter-mqtt",
+            "modal": false,
+            "resizable": false,
+            "show": "onDemand",
+            "size": 400,
+            "viewParams": {},
+            "viewPath": "components/settings/mqtt/af"
+          },
+          {
+            "anchor": "fixed",
+            "autoBreakpoint": 480,
+            "content": "cover",
+            "handle": "hide",
+            "iconUrl": "",
+            "id": "tags",
+            "modal": false,
+            "resizable": false,
+            "show": "onDemand",
+            "size": 400,
+            "viewParams": {},
+            "viewPath": "components/settings/sourceTags/sourceTagPicker"
+          }
+        ]
+      },
+      "title": "",
+      "viewPath": "components/settings/settingsHome"
+    },
+    "/status": {
+      "title": "",
+      "viewPath": "components/pingtest/systemConnectivity"
+    },
+    "/tags": {
+      "title": "",
+      "viewPath": "components/allTags/activeTags"
+    },
+    "/tags/:rootTagPath": {
+      "docks": {
+        "right": [
+          {
+            "anchor": "fixed",
+            "autoBreakpoint": 480,
+            "content": "cover",
+            "handle": "hide",
+            "iconUrl": "",
+            "id": "editor",
+            "modal": false,
+            "resizable": false,
+            "show": "onDemand",
+            "size": 600,
+            "viewParams": {
+              "isInPI": false,
+              "tagPath": "[default]PI Integration/unit10/0141/RSSI"
+            },
+            "viewPath": "components/editor/descriptors/decriptorEditorPane"
+          }
+        ]
+      },
+      "title": "",
+      "viewPath": "components/editor/tags/PITag"
+    }
+  },
+  "sharedDocks": {
+    "cornerPriority": "top-bottom",
+    "top": [
+      {
+        "anchor": "fixed",
+        "autoBreakpoint": 480,
+        "content": "push",
+        "handle": "hide",
+        "iconUrl": "",
+        "id": "",
+        "modal": false,
+        "resizable": false,
+        "show": "visible",
+        "size": 50,
+        "viewParams": {},
+        "viewPath": "components/utils/navBar"
+      }
+    ]
+  }
+}

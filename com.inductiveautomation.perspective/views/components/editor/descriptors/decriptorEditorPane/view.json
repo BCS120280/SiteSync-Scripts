@@ -1,0 +1,265 @@
+{
+  "custom": {},
+  "params": {
+    "isInPI": false,
+    "tagPath": "[default]PI Integration/unit10/0141/RSSI"
+  },
+  "propConfig": {
+    "params.isInPI": {
+      "paramDirection": "input",
+      "persistent": true
+    },
+    "params.tagPath": {
+      "paramDirection": "input",
+      "persistent": true
+    }
+  },
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "events": {
+              "dom": {
+                "onClick": {
+                  "config": {
+                    "id": "editor",
+                    "type": "close"
+                  },
+                  "scope": "C",
+                  "type": "dock"
+                }
+              }
+            },
+            "meta": {
+              "name": "close"
+            },
+            "position": {
+              "basis": "30px"
+            },
+            "props": {
+              "path": "material/close"
+            },
+            "type": "ia.display.icon"
+          },
+          {
+            "children": [
+              {
+                "meta": {
+                  "name": "Label"
+                },
+                "position": {
+                  "grow": 1
+                },
+                "propConfig": {
+                  "props.text": {
+                    "binding": {
+                      "config": {
+                        "path": "view.params.tagPath"
+                      },
+                      "type": "property"
+                    }
+                  }
+                },
+                "type": "ia.display.label"
+              }
+            ],
+            "meta": {
+              "name": "FlexContainer"
+            },
+            "position": {
+              "shrink": 0
+            },
+            "props": {
+              "direction": "column",
+              "style": {
+                "marginLeft": "3%"
+              }
+            },
+            "type": "ia.container.flex"
+          }
+        ],
+        "custom": {
+          "PIPath": "",
+          "isInPI": false
+        },
+        "meta": {
+          "name": "header"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "style": {
+            "backgroundColor": "#8080804D",
+            "borderBottomLeftRadius": "12px",
+            "borderBottomRightRadius": "12px",
+            "borderTopLeftRadius": "12px",
+            "borderTopRightRadius": "12px",
+            "padding": "3%"
+          }
+        },
+        "scripts": {
+          "customMethods": [],
+          "extensionFunctions": null,
+          "messageHandlers": [
+            {
+              "messageType": "getPITagStatus",
+              "pageScope": true,
+              "script": "\t# implement your handler here\n\tsystem.perspective.print(\"PI Tag Status\")\n\tself.custom.isInPI \u003d not self.custom.isInPI",
+              "sessionScope": false,
+              "viewScope": false
+            }
+          ]
+        },
+        "type": "ia.container.flex"
+      },
+      {
+        "meta": {
+          "name": "editItems"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "propConfig": {
+          "props.instances[0].tagPath": {
+            "binding": {
+              "config": {
+                "expression": "{view.params.tagPath} + \".documentation\""
+              },
+              "type": "expr"
+            }
+          },
+          "props.instances[1].tagPath": {
+            "binding": {
+              "config": {
+                "expression": "{view.params.tagPath} + \".engUnit\""
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "direction": "column",
+          "instances": [
+            {
+              "attributeName": "Point Descripton",
+              "instancePosition": {},
+              "instanceStyle": {
+                "classes": ""
+              }
+            },
+            {
+              "attributeName": "Engineering Unit",
+              "instancePosition": {},
+              "instanceStyle": {
+                "classes": ""
+              }
+            }
+          ],
+          "path": "components/editor/descriptors/descriptor",
+          "style": {
+            "borderBottomLeftRadius": "12px",
+            "borderBottomRightRadius": "12px",
+            "borderColor": "grey",
+            "borderStyle": "solid",
+            "borderTopLeftRadius": "12px",
+            "borderTopRightRadius": "12px",
+            "marginBottom": "5%",
+            "marginTop": "5%",
+            "padding": "2%"
+          }
+        },
+        "type": "ia.display.flex-repeater"
+      },
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "events": {
+                  "dom": {
+                    "onClick": {
+                      "config": {
+                        "script": "\tutils.showLoading()\n\ttry:\n\t\t##white list\n\t\n\t\t\t##check if tag exists\n\t\t\n\t\tPIresult \u003d AF.updatePITag(self.view.params.tagPath)\n\t\tif utils.isSuccess(PIresult):\n\t\t\n\t\t\tutils.showSuccess(\"Successfully updated tag in PI\")\n\t\t\tsystem.perspective.sendMessage(\"isTagInPI\")\n\t\telse:\n\t\t\tutils.showError(utils.getResultMessage(PIresult))\n\t\n\t\t\t\n\n\texcept Exception as e:\n\t\tutils.showError(str(e))\n\tfinally:\n\t\tutils.hideLoading()"
+                      },
+                      "scope": "G",
+                      "type": "script"
+                    }
+                  }
+                },
+                "meta": {
+                  "name": "Button"
+                },
+                "position": {
+                  "shrink": 0
+                },
+                "propConfig": {
+                  "props.text": {
+                    "binding": {
+                      "config": {
+                        "path": "view.params.isInPI"
+                      },
+                      "transforms": [
+                        {
+                          "code": "\tif value:\n\t\treturn \"Update PI Tag\"\n\telse:\n\t\treturn \"Push tag to PI\"\n\treturn value",
+                          "type": "script"
+                        }
+                      ],
+                      "type": "property"
+                    }
+                  }
+                },
+                "props": {
+                  "image": {
+                    "icon": {
+                      "path": "material/send"
+                    }
+                  },
+                  "style": {
+                    "padding": "4%"
+                  }
+                },
+                "type": "ia.input.button"
+              }
+            ],
+            "meta": {
+              "name": "sync"
+            },
+            "position": {
+              "grow": 1,
+              "shrink": 0
+            },
+            "props": {
+              "justify": "space-around"
+            },
+            "type": "ia.container.flex"
+          }
+        ],
+        "meta": {
+          "name": "aboutPi"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "justify": "space-between"
+        },
+        "type": "ia.container.flex"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "backgroundColor": "white",
+        "margin": "2%",
+        "padding": "2%"
+      }
+    },
+    "type": "ia.container.flex"
+  }
+}

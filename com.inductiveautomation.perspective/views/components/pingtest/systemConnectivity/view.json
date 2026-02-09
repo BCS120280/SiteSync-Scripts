@@ -1,0 +1,191 @@
+{
+  "custom": {
+    "adapterStatus": {
+      "message": "MQTT Adapter API is Reachable",
+      "status": true
+    },
+    "formattedAdapterStatus": {
+      "connectivityText": "MQTT Adapter API is Reachable",
+      "connectivityType": "adapter",
+      "instancePosition": {},
+      "instanceStyle": {
+        "classes": ""
+      },
+      "successful": true
+    },
+    "formattedPIStatus": {
+      "connectivityText": "PI Web API is Reachable",
+      "connectivityType": "AF",
+      "instancePosition": {},
+      "instanceStyle": {
+        "classes": ""
+      },
+      "successful": true
+    },
+    "isUsingTransmission": true,
+    "items": [
+      {
+        "connectivityText": "MQTT Adapter API is Reachable",
+        "connectivityType": "adapter",
+        "instancePosition": {},
+        "instanceStyle": {
+          "classes": ""
+        },
+        "successful": true
+      },
+      {
+        "connectivityText": "PI Web API is Reachable",
+        "connectivityType": "AF",
+        "instancePosition": {},
+        "instanceStyle": {
+          "classes": ""
+        },
+        "successful": true
+      }
+    ],
+    "piWebAPIStatus": {
+      "message": "PI Web API is Reachable",
+      "status": true
+    },
+    "transmitterStatus": {}
+  },
+  "params": {},
+  "propConfig": {
+    "custom.adapterStatus": {
+      "persistent": true
+    },
+    "custom.formattedAdapterStatus": {
+      "binding": {
+        "config": {
+          "path": "view.custom.adapterStatus"
+        },
+        "transforms": [
+          {
+            "code": "\tj \u003d {\n\t\t  \"instanceStyle\": {\n\t\t    \"classes\": \"\"\n\t\t  },\n\t\t  \"instancePosition\": {},\n\t\t  \"connectivityText\": value[\u0027message\u0027],\n\t\t  \"connectivityType\": \"adapter\",\n\t\t  \"successful\": value[\u0027status\u0027]\n\t\t}\t\n\treturn j",
+            "type": "script"
+          }
+        ],
+        "type": "property"
+      },
+      "persistent": true
+    },
+    "custom.formattedPIStatus": {
+      "binding": {
+        "config": {
+          "path": "view.custom.piWebAPIStatus"
+        },
+        "transforms": [
+          {
+            "code": "\tj \u003d {\n\t\t  \"instanceStyle\": {\n\t\t    \"classes\": \"\"\n\t\t  },\n\t\t  \"instancePosition\": {},\n\t\t  \"connectivityText\": value[\u0027message\u0027],\n\t\t  \"connectivityType\": \"AF\",\n\t\t  \"successful\": value[\u0027status\u0027]\n\t\t}\t\n\t\t\n\treturn j",
+            "type": "script"
+          }
+        ],
+        "type": "property"
+      },
+      "persistent": true
+    },
+    "custom.isUsingTransmission": {
+      "binding": {
+        "config": {
+          "fallbackDelay": 2.5,
+          "mode": "direct",
+          "tagPath": "[MQTT Transmission]Transmission Info/Version"
+        },
+        "transforms": [
+          {
+            "code": "\tif quality.badOrError:\n\t\treturn False\n\telse:\n\t\treturn True",
+            "type": "script"
+          }
+        ],
+        "type": "tag"
+      },
+      "persistent": true
+    },
+    "custom.items": {
+      "binding": {
+        "config": {
+          "struct": {
+            "adapter": "{view.custom.adapterStatus}",
+            "af": "{view.custom.piWebAPIStatus}",
+            "isUsingTransmission": "{view.custom.isUsingTransmission}"
+          },
+          "waitOnAll": true
+        },
+        "transforms": [
+          {
+            "code": "\titems \u003d []\n\tadapterStat \u003d {\n\t\t  \"instanceStyle\": {\n\t\t    \"classes\": \"\"\n\t\t  },\n\t\t  \"instancePosition\": {},\n\t\t  \"connectivityText\": value[\u0027adapter\u0027][\u0027message\u0027],\n\t\t  \"connectivityType\": \"adapter\",\n\t\t  \"successful\": value[\u0027adapter\u0027][\u0027status\u0027]\n\t\t}\n\tAFStat \u003d {\n\t\t  \"instanceStyle\": {\n\t\t    \"classes\": \"\"\n\t\t  },\n\t\t  \"instancePosition\": {},\n\t\t  \"connectivityText\": value[\u0027af\u0027][\u0027message\u0027],\n\t\t  \"connectivityType\": \"AF\",\n\t\t  \"successful\": value[\u0027af\u0027][\u0027status\u0027]\n\t\t}\n\titems.append(adapterStat)\n\titems.append(AFStat)\n\treturn items\n\t",
+            "type": "script"
+          }
+        ],
+        "type": "expr-struct"
+      },
+      "persistent": true
+    },
+    "custom.piWebAPIStatus": {
+      "persistent": true
+    },
+    "custom.transmitterStatus": {
+      "persistent": true
+    }
+  },
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "FlexRepeater"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "propConfig": {
+          "props.instances": {
+            "binding": {
+              "config": {
+                "path": "view.custom.items"
+              },
+              "type": "property"
+            }
+          }
+        },
+        "props": {
+          "direction": "column",
+          "path": "components/pingtest/statusBubble",
+          "useDefaultViewWidth": false
+        },
+        "type": "ia.display.flex-repeater"
+      }
+    ],
+    "events": {
+      "system": {
+        "onStartup": {
+          "config": {
+            "script": "\tsystem.perspective.print(\"Checking adapter status\")\n\tsystem.perspective.sendMessage(\"checkStatus\", payload\u003d{\"type\":\"adapter\"})\n\t\n\tsystem.perspective.print(\"Checking af status\")\n\tsystem.perspective.sendMessage(\"checkStatus\", payload\u003d{\"type\":\"AF\"})"
+          },
+          "scope": "G",
+          "type": "script"
+        }
+      }
+    },
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "scripts": {
+      "customMethods": [],
+      "extensionFunctions": null,
+      "messageHandlers": [
+        {
+          "messageType": "checkStatus",
+          "pageScope": true,
+          "script": "\tutils.showLoading()\n\ttry:\n\t\t# implement your handler here\n\t\tif payload[\u0027type\u0027] \u003d\u003d \"adapter\":\n\t\t\tsystem.perspective.print(\"Checking adapter status\")\n\t\t\tself.view.custom.adapterStatus \u003d status.adapterAPIPingStatus()\n\t\telif payload[\u0027type\u0027] \u003d\u003d \"AF\":\n\t\t\tsystem.perspective.print(\"Checking af status\")\n\t\t\tself.view.custom.piWebAPIStatus \u003d status.PIWebAPIPingStatus()\n\t\telif payload[\u0027type\u0027] \u003d\u003d \"transmission\":\n\t\t\tself.view.custom.transmitterStatus \u003d status.getTransmitterStatus()\n\texcept Exception as e:\n\t\tutils.showError(str(e))\n\tfinally:\n\t\tutils.hideLoading()",
+          "sessionScope": false,
+          "viewScope": false
+        }
+      ]
+    },
+    "type": "ia.container.flex"
+  }
+}

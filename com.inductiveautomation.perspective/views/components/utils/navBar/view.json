@@ -1,0 +1,81 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {
+    "defaultSize": {
+      "height": 40
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "HorizontalMenu"
+        },
+        "position": {
+          "shrink": 0
+        },
+        "props": {
+          "items": [
+            {
+              "enabled": true,
+              "icon": {
+                "path": "material/house"
+              },
+              "items": [],
+              "label": "Home",
+              "style": {
+                "classes": ""
+              },
+              "target": "/"
+            },
+            {
+              "enabled": true,
+              "icon": {
+                "path": "material/data_usage"
+              },
+              "items": [],
+              "label": "Tags",
+              "style": {
+                "classes": ""
+              },
+              "target": "/tags"
+            },
+            {
+              "enabled": true,
+              "icon": {
+                "path": "material/settings"
+              },
+              "items": [],
+              "label": "Settings",
+              "style": {
+                "classes": ""
+              },
+              "target": "/settings"
+            },
+            {
+              "enabled": true,
+              "icon": {
+                "path": "material/toggle_on"
+              },
+              "items": [],
+              "label": "Status",
+              "style": {
+                "classes": ""
+              },
+              "target": "/status"
+            }
+          ]
+        },
+        "type": "ia.navigation.horizontalmenu"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column"
+    },
+    "type": "ia.container.flex"
+  }
+}
