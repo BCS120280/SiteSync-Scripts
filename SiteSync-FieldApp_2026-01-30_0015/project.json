@@ -1,7 +1,0 @@
-{
-  "title": "SiteSync-Enterprise-FieldApp",
-  "description": "",
-  "parent": "SiteSyncCore",
-  "enabled": true,
-  "inheritable": false
-}
