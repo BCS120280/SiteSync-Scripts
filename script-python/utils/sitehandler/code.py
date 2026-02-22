@@ -63,12 +63,5 @@ def updateSite(siteID, notes, primaryRegion, name):
 	return result
 
 def updateSiteRoles(siteID, rolesJSON):
-	j = {"roles":rolesJSON}
-	system.perspective.print("Preparing roles")
-	system.perspective.print(rolesJSON)
-	if len(rolesJSON) > 0:
-		r = json.dumps(j)
-		a = system.sitesync.updateTenantRoles(r, int(siteID))
-		system.perspective.print(a)
-	else:
-		system.perspective.print("No roles")
+	r = json.dumps(rolesJSON)
+	system.sitesync.updateTenantRoles(r, int(siteID))

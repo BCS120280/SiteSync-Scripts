@@ -2,8 +2,7 @@ import json
 import re
 
 def saveDevice(devEUI, appEUI, appKey, name, serialNumber, modelID, lat, lon,  description, provider, tagPath, image, user, appID = 0, tenantID = 1 ):
-	appID = enterprise.tenant.getDefaultApp()
-	deviceJSON = formatAddDeviceRequest(devEUI, appEUI, appKey, name, serialNumber, tenantID, modelID, description, appID)
+	deviceJSON = formatAddDeviceRequest(devEUI, appEUI, appKey, name, serialNumber, tenantID, modelID, description, enterprise.tenant.getDefaultApp())
 	
 	validationResults = validateDevice(deviceJSON, tagPath)
 	if utils.resultParser.isResultSuccess(validationResults):
@@ -17,7 +16,7 @@ def saveDevice(devEUI, appEUI, appKey, name, serialNumber, modelID, lat, lon,  d
 			if utils.resultParser.isResultSuccess(tagPathSaveResult):
 				message = "Successfully added device {0}".format(devEUI)
 				fullTagPath = device.tagOperations.assembleFullPath(provider, tagPath, name)
-				createPITemplate.createInstance(fullTagPath, name)
+				
 				system.perspective.print("post-create device")
 				system.perspective.print(image)
 				if image != None and len(image) > 1:

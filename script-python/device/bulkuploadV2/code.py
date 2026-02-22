@@ -1,15 +1,4 @@
 import re
-import decoders
-
-# Import Ignition runtime modules for IDE support
-# These modules are provided by Ignition platform at runtime
-try:
-    import system
-    import device
-    import utils
-except ImportError:
-    # Modules will be available at runtime in Ignition
-    pass
 
 def processFile(rows, deviceProfileList, selectedTenant, selectedApp, selectedUseCase, selectedTenantID, selectedDeviceProfileID, selectedAppID, tagProvider ):
 	#sample row
@@ -101,14 +90,14 @@ def deviceChecker(row, deviceName):
 	else:
 		return deviceName
 		
-def deviceIDChecker(row, device_type_id, device_profiles, device_name=None, model_name=None):
-
+def deviceIDChecker(row, deviceTypeID, deviceProfiles):
+	
 	deviceType = row.get('deviceType', '')
 	if deviceType != '':
-		modelID = decoders.model.findModelIDByName(device_profiles, model_name)
+		modelID = decoders.model.findModelIDByName(deviceProfiles, modelName)
 		return modelID
 	else:
-		return device_name
+		return deviceName
 	
 
 def validator(string, stringLength):

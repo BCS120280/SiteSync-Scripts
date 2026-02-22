@@ -1,4 +1,4 @@
-def createLimitedInstance(intendedTagPath, limitedTemplate, newTagName, sourceTagPath, baseTagPath=None):
+def createLimitedInstance(intendedTagPath, limitedTemplate, newTagName, sourceTagPath):
 		
 	typeId = "SiteSyncModels/"  + limitedTemplate
 	tagType = "UdtInstance"

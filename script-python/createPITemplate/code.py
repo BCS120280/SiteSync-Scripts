@@ -1,7 +1,7 @@
 
 
 def createInstance(tagPath, tagName):
-	system.perspective.print("Creating PI isntance {0}".format(tagPath))
+	#system.perspective.print("Creating PI isntance {0}".format(tagPath))
 	try:
 		limitedModel = system.tag.readBlocking(["{0}/metaData/sparkplug/template".format(tagPath)])[0].value
 		if limitedModel != None:
@@ -32,13 +32,13 @@ def createInstance(tagPath, tagName):
 			  
 			# Create the Tag.
 			createReult = system.tag.configure(baseTagPath, [tag], collisionPolicy)
-			system.perspective.print(createReult)
+			#system.perspective.print(createReult)
 			
 			system.tag.writeBlocking([tagPath + ".activated"], [True])
 			
-			results = addDevices.addTagToPi("{0}/{1}".format(baseTagPath, tagName), addDevices.componentID, addDevices.PIAddress)
+			results = addDevices.addTagToPi("{0}{1}".format(baseTagPath, tagName), addDevices.componentID, addDevices.PIAddress)
 			#system.perspective.print("PI API")
-			system.perspective.print(results)
+			#system.perspective.print(results)
 			return createReult
 	except Exception as e:
 		system.perspective.print("Error " + str(e))

@@ -1,8 +1,5 @@
 import json
 
-from pip import utils
-
-
 def formatMetaData(row):
 	requiredColumns = ["dev_eui", "join_eui", "app_key", 'deviceType', 'tagPath', 'description', 'name', 'serialNumber']
 	meta = {}

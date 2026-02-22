@@ -88,13 +88,24 @@ def updateDataSelection(arrayOfTags, componentID, PIAddress):
 		return {"status":"error", "message":str(e)}
 		
 		
-def addTagToPi(tagPath, componentID, PIAddress):
-	##grab all tags
-	items = getAttributesForTag(tagPath)
-	existingConfig = getCurrentDataSelection(componentID, PIAddress)
-	piTags = formatDataSelectionItem(tagPath, items, existingConfig)
-	#system.tag.writeBlocking(["[default]New Tag"], [json.dumps(piTags)])
-	results = updateDataSelection(piTags, componentID, PIAddress)
-	return results
+def addTagToPi(tagPath, componentID = "", PIAddress = ""):
+	logger = system.util.getLogger("SiteSync-PiTagCreator")
+	logger.info("Creating PI tag: " + tagPath)
+	try:
+		tagPathArray = [tagPath]
+		adapterResults = PIIntegration.adapter.addToDataSelection(tagPathArray)
+		results = PIIntegration.AF.createPITag(tagPath)
+		logger.info("Adapter add result: " + str(adapterResults) + " PI tag creation results: " + str(results))
+	except Exception as e:
+		logger.error("Error creating PI tag: " + tagPath + "; " + str(e))
+		
+	return False
+#	##grab all tags
+#	items = getAttributesForTag(tagPath)
+#	existingConfig = getCurrentDataSelection(componentID, PIAddress)
+#	piTags = formatDataSelectionItem(tagPath, items, existingConfig)
+#	#system.tag.writeBlocking(["[default]New Tag"], [json.dumps(piTags)])
+#	results = updateDataSelection(piTags, componentID, PIAddress)
+#	return results
 	
 	
