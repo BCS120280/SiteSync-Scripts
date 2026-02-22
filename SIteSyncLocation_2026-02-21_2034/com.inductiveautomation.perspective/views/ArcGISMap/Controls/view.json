@@ -1,0 +1,37 @@
+{
+  "custom": {},
+  "params": {
+    "variant": "World_Street_Map"
+  },
+  "propConfig": {
+    "params.variant": {
+      "paramDirection": "inout",
+      "persistent": true
+    }
+  },
+  "props": {
+    "defaultSize": {
+      "height": 445,
+      "width": 176
+    }
+  },
+  "root": {
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "backgroundColor": "#FFFFFF",
+        "borderBottomLeftRadius": "4px",
+        "borderBottomRightRadius": "4px",
+        "borderColor": "#CCCCCC",
+        "borderStyle": "solid",
+        "borderTopLeftRadius": "4px",
+        "borderTopRightRadius": "4px",
+        "borderWidth": "1px"
+      }
+    },
+    "type": "ia.container.flex"
+  }
+}

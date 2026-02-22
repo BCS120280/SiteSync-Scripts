@@ -1,0 +1,24 @@
+{
+  "scope": "G",
+  "version": 1,
+  "restricted": false,
+  "overridable": true,
+  "files": [
+    "config.json",
+    "doPut.py",
+    "doTrace.py",
+    "doHead.py",
+    "doPatch.py",
+    "doPost.py",
+    "doOptions.py",
+    "doGet.py",
+    "doDelete.py"
+  ],
+  "attributes": {
+    "lastModificationSignature": "f7bc7acd749f4676580db2cd554eb5e6dfab1e694876503b5f66493e69eaa8c3",
+    "lastModification": {
+      "actor": "N7W8-Extra",
+      "timestamp": "2026-02-16T03:17:29Z"
+    }
+  }
+}

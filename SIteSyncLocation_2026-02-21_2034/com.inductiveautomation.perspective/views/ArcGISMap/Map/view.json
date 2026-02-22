@@ -1,0 +1,35 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {},
+  "root": {
+    "children": [
+      {
+        "meta": {
+          "name": "TrackerMap"
+        },
+        "position": {
+          "grow": 1
+        },
+        "props": {
+          "src": "/system/webdev/SIteSyncLocation/map/page",
+          "style": {
+            "borderWidth": 0,
+            "overflow": "hidden"
+          }
+        },
+        "type": "ia.display.iframe"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "props": {
+      "direction": "column",
+      "style": {
+        "overflow": "hidden"
+      }
+    },
+    "type": "ia.container.flex"
+  }
+}
